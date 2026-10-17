@@ -57,12 +57,12 @@ def test_rise_climbs_from_pct_to_the_top_over_the_remaining_cooldown():
 
 def test_thunder_per_percent_events_keep_one_preview_until_the_phase_changes():
     poles.apply(thunder_event(1))
-    first = poles.current_id(2)
+    first = poles.current_id(1)  # pillar 1 is R, the rising pole
     for pct in range(2, 60):
         poles.apply(thunder_event(pct))
-    assert poles.current_id(2) == first  # the rise runs on the ESP, not restarted every percent
+    assert poles.current_id(1) == first  # the rise runs on the ESP, not restarted every percent
     poles.apply(thunder_event(100, phase="ready"))
-    assert poles.current_id(2) != first
+    assert poles.current_id(1) != first
 
 
 def test_idle_hands_the_pillars_back_to_their_own_slots():
@@ -74,10 +74,22 @@ def test_idle_hands_the_pillars_back_to_their_own_slots():
 
 def test_replay_gives_the_same_look_a_new_id():
     poles.apply(events.launching({"L": events.launch_pole(2)}))
-    before, data = poles.current_id(1), poles.binary(1)
+    before, data = poles.current_id(2), poles.binary(2)  # pillar 2 is L
     poles.replay("L")
-    assert poles.current_id(1) > before
-    assert poles.binary(1)[16:] == data[16:]  # same steps; only the header (id, crc) is new
+    assert poles.current_id(2) > before
+    assert poles.binary(2)[16:] == data[16:]  # same steps; only the header (id, crc) is new
+
+
+def test_a_held_look_is_reissued_before_the_pillar_ends_it(monkeypatch):
+    from app.features.pillar import poles as module
+    now = [100.0]
+    monkeypatch.setattr(module.time, "monotonic", lambda: now[0])
+    poles.apply(events.launching({"L": events.launch_pole(1)}))
+    first = poles.current_id(1)
+    now[0] += module.REFRESH_S - 1
+    assert poles.current_id(1) == first
+    now[0] += 1
+    assert poles.current_id(1) > first
 
 
 @pytest.fixture
@@ -133,4 +145,4 @@ def test_a_pillar_press_is_side_aware(client, monkeypatch):
     monkeypatch.setattr(show.director, "on_press", on_press)
     client.post("/api/buttons/press/claps?pillar_id=1")
     client.post("/api/buttons/press/start?pillar_id=2")
-    assert seen == [("claps", "L"), ("start", "R")]
+    assert seen == [("claps", "R"), ("start", "L")]  # pillar 1 stands right

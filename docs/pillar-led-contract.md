@@ -169,7 +169,7 @@ Porting pitfalls (TypeScript preview):
 The Pi draws each pillar's pole (docs/show-events-contract.md) through the **preview** of section 7,
 so the firmware needs no show-event code. `app/features/pillar/poles.py` owns it.
 
-- Pillar 1 is always **L**, pillar 2 always **R**.
+- Pillar 1 is always **R**, pillar 2 always **L** (as seen from the entrance).
 - Press: `POST /api/buttons/press/<action>?pillar_id=N` goes to the show director as a side-aware
   press of that side; the tap count is the one the action stands for (4 = skip, 5+ = special).
   Without `pillar_id` the legacy path is unchanged.

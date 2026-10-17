@@ -2,6 +2,7 @@
 per-pillar preview sequence, which the pillar picks up on its next poll (~1 s) and plays with its
 existing renderer. No firmware change: the pillar only knows previews."""
 import threading
+import time
 
 from app.features.show import tunables
 from app.features.show.schemas import Pole, ShowEvent
@@ -9,9 +10,10 @@ from app.features.show.schemas import Pole, ShowEvent
 from .compiler import compile_sequence
 from .schemas import PIXEL_COUNT, MAX_DURATION_MS, MIN_DURATION_MS, EffectStep, FrameStep, Pixel, Sequence, Transition
 
-SIDE_BY_PILLAR = {1: "L", 2: "R"}  # fixed: pillar 1 stands left, as seen from the entrance
+SIDE_BY_PILLAR = {1: "R", 2: "L"}  # fixed: pillar 1 stands right, pillar 2 left, as seen from the entrance
 BLACK = "#000000"
 HOLD_MS = MAX_DURATION_MS  # a held look repeats every minute; the loop restart is invisible
+REFRESH_S = 50  # the pillar ends any preview after 60 s (pillar_player.cpp kPreviewMaxMs): re-issue before that
 EDGE_FADE_MS = 150  # each pixel's fade as a rising/draining edge passes it (the contract's wipe fade)
 
 
@@ -103,7 +105,7 @@ class PoleState:
 
     def reset(self):
         self._last_id = 1_000_000  # above the editor preview's ids, so the two never collide
-        self._sides: dict[str, tuple[tuple, int, bytes, Sequence] | None] = {"L": None, "R": None}  # key, id, file
+        self._sides: dict[str, tuple[tuple, int, bytes, Sequence, float] | None] = {"L": None, "R": None}  # key, id, file, at
         self._pillar_by_ip: dict[str, int] = {}
 
     def apply(self, event: ShowEvent) -> None:
@@ -117,7 +119,7 @@ class PoleState:
 
     def _publish(self, side: str, key: tuple, sequence: Sequence) -> None:
         self._last_id += 1
-        self._sides[side] = (key, self._last_id, compile_sequence(sequence, self._last_id), sequence)
+        self._sides[side] = (key, self._last_id, compile_sequence(sequence, self._last_id), sequence, time.monotonic())
 
     def replay(self, side: str) -> None:
         """A press on the pillar ends its preview locally: send the same look again under a new id."""
@@ -135,8 +137,15 @@ class PoleState:
         return self._pillar_by_ip.get(ip) if ip else None
 
     def current_id(self, pillar_id: int | None) -> int:
-        current = self._sides.get(SIDE_BY_PILLAR.get(pillar_id))
-        return current[1] if current else 0
+        side = SIDE_BY_PILLAR.get(pillar_id)
+        with self._lock:
+            current = self._sides.get(side)
+            if current and time.monotonic() - current[4] >= REFRESH_S:
+                # ponytail: restarts the look from its first step; fine for held fills and pulses, a rise
+                # longer than REFRESH_S (cooldownMs > 50 s) would restart its climb
+                self._publish(side, current[0], current[3])
+                current = self._sides[side]
+            return current[1] if current else 0
 
     def binary(self, pillar_id: int | None) -> bytes | None:
         current = self._sides.get(SIDE_BY_PILLAR.get(pillar_id))
