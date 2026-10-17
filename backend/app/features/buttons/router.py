@@ -261,8 +261,17 @@ async def button_press(data: ButtonPress, db: Session = Depends(get_db)):
 
 
 @router.post("/press/{action}")
-async def button_press_simple(action: ButtonAction, db: Session = Depends(get_db)):
-    """Simple endpoint: POST /api/buttons/press/start"""
+async def button_press_simple(action: ButtonAction, pillar_id: int | None = None, db: Session = Depends(get_db)):
+    """Simple endpoint: POST /api/buttons/press/start. With ?pillar_id=N (the pillar firmware) the press
+    is side-aware: pillar 1 = L, 2 = R, and the tap count is the one the action stands for."""
+    from app.features.pillar.poles import SIDE_BY_PILLAR, poles
+    if pillar_id in SIDE_BY_PILLAR:
+        from app.features.show.service import director
+        side = SIDE_BY_PILLAR[pillar_id]
+        result = await director.on_press(action, side)
+        poles.replay(side)  # the press cut the pillar's preview short on the ESP
+        return result
+
     if not is_action_allowed(action, show_is_running()):
         return ignored_response(action)
 

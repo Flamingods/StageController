@@ -15,7 +15,7 @@ from .scene import scene_for
 from . import analytics
 from .launch import LaunchArbiter, LaunchResult
 from .models import ShowTunable
-from .schemas import Pole
+from .schemas import Pole, ShowEvent
 from .songmap import SongMap
 from .thunder import Thunder
 
@@ -104,6 +104,9 @@ class StagePlayer:
 
 async def _broadcast(event) -> None:
     from app.features.buttons.router import manager
+    from app.features.pillar.poles import poles
+    if isinstance(event, ShowEvent):
+        poles.apply(event)
     await manager.broadcast(event)
 
 

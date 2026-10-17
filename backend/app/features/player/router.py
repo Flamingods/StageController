@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -6,6 +6,7 @@ from app.core.database import get_db
 from app.features.songs.models import Song
 from app.features.playlists.services import get_playlist, get_playlist_songs
 from app.features.pillar import service as pillar
+from app.features.pillar.poles import poles
 from .service import player
 
 router = APIRouter(prefix="/player", tags=["player"])
@@ -29,15 +30,19 @@ class VolumeRequest(BaseModel):
 
 
 @router.get("/state")
-def get_state(client: str | None = None, running_version: int | None = None, db: Session = Depends(get_db)):
+def get_state(request: Request, client: str | None = None, running_version: int | None = None,
+              pillar_id: int | None = None, db: Session = Depends(get_db)):
     """Get current player state, plus what the pillar ESP watches (it polls this every second
-    as ?client=pillar&running_version=N)."""
+    as ?client=pillar&pillar_id=N&running_version=N). The preview id is the editor's draft when one
+    plays, else that pillar's show pole (docs/pillar-led-contract.md §9)."""
     if client == "pillar":
         pillar.pillar_status.record_poll(running_version)
+        if pillar_id is not None:
+            poles.seen(pillar_id, request.client.host if request.client else None)
     return {
         **player.get_state(),
         "pillar_plans_version": pillar.get_version(db),
-        "pillar_preview_id": pillar.preview.current_id(),
+        "pillar_preview_id": pillar.preview.current_id() or poles.current_id(pillar_id),
     }
 
 
