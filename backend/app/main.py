@@ -101,26 +101,15 @@ async def startup():
         pass  # Frontend will poll /player/state
 
     async def on_song_ending():
-        """Called when song is about to end (fade starts) - play finale claps."""
+        """Called a few seconds before a song ends - play end-of-song claps."""
         from app.core.database import SessionLocal
-        from app.features.playlists.models import Playlist, playlist_songs
-        from app.features.songs.models import Song
-        import random
+        from app.features.buttons.claps import play_finale_claps
 
         db = SessionLocal()
         try:
-            # Find "finale_claps" playlist and play a random song as overlay
-            finale_playlist = db.query(Playlist).filter(Playlist.name.ilike("finale_claps")).first()
-            if finale_playlist:
-                song_ids = db.execute(
-                    playlist_songs.select().where(playlist_songs.c.playlist_id == finale_playlist.id)
-                ).fetchall()
-                if song_ids:
-                    random_entry = random.choice(song_ids)
-                    song = db.query(Song).filter(Song.id == random_entry.song_id).first()
-                    if song:
-                        print(f"Playing finale claps: {song.title}")
-                        music_player.play_overlay(song.file_path)
+            song = play_finale_claps(db)
+            if song:
+                print(f"Playing finale claps: {song['title']}")
         finally:
             db.close()
 

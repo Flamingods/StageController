@@ -7,14 +7,13 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.features.devices.models import Sequence, Device
 from app.features.devices.service import execute_sequence, set_device_state, update_device_state
-import random
 
-from app.features.playlists.models import Playlist, playlist_songs
+from app.features.playlists.models import Playlist
 from app.features.playlists.services import shuffle_playlist, get_playlist_songs
-from app.features.songs.models import Song
 from app.features.player.service import player as music_player
 from app.features.stats.models import SongPlay
 from app.features.buttons.rules import is_action_allowed
+from app.features.buttons.claps import play_button_claps, play_start_claps
 
 router = APIRouter(prefix="/buttons", tags=["buttons"])
 
@@ -79,30 +78,6 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
-def play_random_claps(db: Session) -> dict | None:
-    """Play a random song from the "claps" playlist as an overlay (doesn't stop main music).
-
-    Returns the song played, or None if there is no claps playlist or it is empty.
-    """
-    claps_playlist = db.query(Playlist).filter(Playlist.name.ilike("claps")).first()
-    if not claps_playlist:
-        return None
-
-    song_ids = db.execute(
-        playlist_songs.select().where(playlist_songs.c.playlist_id == claps_playlist.id)
-    ).fetchall()
-    if not song_ids:
-        return None
-
-    random_entry = random.choice(song_ids)
-    song = db.query(Song).filter(Song.id == random_entry.song_id).first()
-    if not song:
-        return None
-
-    music_player.play_overlay(song.file_path)
-    return {"id": song.id, "title": song.title, "artist": song.artist}
-
-
 async def handle_start_action(db: Session, playlist_name: str = "main") -> dict:
     """Start main sequence and a playlist ("main" unless a game asks for its own), with a claps sound to open the show."""
     result = {"sequence": None, "playlist": None, "overlay_song": None}
@@ -137,7 +112,7 @@ async def handle_start_action(db: Session, playlist_name: str = "main") -> dict:
         result["playlist"] = {"id": main_playlist.id, "name": main_playlist.name}
 
     # Claps sound over the music (sound only, not the claps device sequence)
-    result["overlay_song"] = play_random_claps(db)
+    result["overlay_song"] = play_start_claps(db)
 
     return result
 
@@ -197,7 +172,7 @@ async def handle_claps_action(db: Session) -> dict:
         seq_result = await execute_sequence(db, claps_sequence.id)
         result["sequence"] = seq_result
 
-    result["overlay_song"] = play_random_claps(db)
+    result["overlay_song"] = play_button_claps(db)
 
     return result
 
