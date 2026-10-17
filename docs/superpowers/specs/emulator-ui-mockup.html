@@ -1,0 +1,559 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Stage Emulator: UI redesign mockup</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+/* App theme (frontend/src/App.css) + stage tokens (spec.json design.tokens) */
+:root{
+  --bg-deep:#1a1216;--bg-main:#261a1f;--bg-card:#332228;--bg-hover:#3d2a31;
+  --accent:#ff6b8a;--accent-dim:rgba(255,107,138,.2);--text:#f5e6e9;--muted:#a89095;--border:#4a3038;
+  --danger:#ff6b6b;--success:#5dd9a3;
+  --pink:#FF1493;--lime:#7DFF00;--blue:#2f6bff;--blueUi:#7AA2FF;--white:#ffffff;
+  --nav-h:65.5px; /* measured: .header at 1280x800 */
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden}
+body{font:13px/1.35 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg-main);color:var(--text)}
+button{font:inherit;color:var(--text);background:var(--bg-hover);border:1px solid var(--border);border-radius:6px;padding:.2rem .5rem;cursor:pointer}
+button:hover{border-color:var(--accent)}
+kbd{font:11px ui-monospace,monospace;border:1px solid var(--border);border-radius:3px;padding:0 3px;background:var(--bg-deep)}
+
+/* fake app nav (not part of the redesign) */
+.header{height:var(--nav-h);display:flex;align-items:center;justify-content:space-between;padding:0 2rem;background:rgba(51,34,40,.7);border-bottom:1px solid var(--border)}
+.header h1{margin:0;font-size:1.5rem;color:var(--accent);font-weight:600}
+.header nav{display:flex;gap:.5rem}
+.header nav span{padding:.5rem 1rem;background:var(--bg-hover);border-radius:4px;font-size:.9rem}
+.header nav span.active{background:var(--accent);color:#fff}
+
+/* mockup-only state switcher, floats bottom-left */
+.mock-cycle{position:fixed;left:50%;transform:translateX(-50%);top:4px;z-index:50;display:flex;gap:4px;align-items:center;padding:4px 6px;border-radius:8px;background:#000c;border:1px dashed var(--accent);font-size:11px}
+.mock-cycle button{padding:1px 6px;font-size:11px}
+.mock-cycle button.on{background:var(--accent);color:#fff}
+
+/* ===== The redesign ===== */
+.emu{height:calc(100vh - var(--nav-h));padding:.5rem 1rem;display:grid;gap:.5rem;
+  grid-template-rows:auto minmax(0,1fr) auto;
+  grid-template-columns:minmax(0,1fr) clamp(320px,26vw,400px);
+  grid-template-areas:"now now" "stage dock" "song song"}
+.card{background:rgba(51,34,40,.6);border:1px solid var(--border);border-radius:12px;min-height:0}
+
+/* Now banner */
+.now{grid-area:now;display:grid;grid-template-columns:auto minmax(0,1fr) minmax(0,1.1fr);gap:.4rem 1rem;align-items:center;padding:.4rem .75rem;background:rgba(255,20,147,.07)}
+.pill{font:800 13px/1 ui-monospace,monospace;letter-spacing:.06em;padding:.45rem .7rem;border-radius:999px;border:2px solid var(--c,var(--muted));color:var(--c,var(--muted));white-space:nowrap}
+.pill small{display:block;font:600 10px/1.2 -apple-system,sans-serif;letter-spacing:0;color:var(--muted);margin-top:2px;text-align:center}
+.now-text b{font-size:15px}
+.now-text .why{color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.next{display:grid;grid-template-columns:auto minmax(0,1fr);gap:1px .5rem;font-size:12px}
+.next .who{font-weight:700;white-space:nowrap}
+.next .who.L{color:var(--lime)} .next .who.R{color:var(--blueUi)}
+.next .what{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.next .what em{font-style:normal;color:#fff;font-weight:700;background:var(--accent-dim);border-radius:3px;padding:0 3px}
+.next .what s{color:var(--muted)}
+.conn{font-size:11px;color:var(--success)}
+
+/* Stage hero */
+.stage{grid-area:stage;background:#050305;padding:4px;display:flex;overflow:hidden}
+.stage svg{flex:1;width:100%;height:100%;min-height:0}
+.body{fill:#0a070a;stroke:#ff1493;stroke-opacity:.5;stroke-width:3;stroke-dasharray:2 9;stroke-linecap:round}
+.zone{fill:#3a2a35;font:700 18px sans-serif;letter-spacing:.2em}
+.led{fill:rgb(30,22,28)}
+.lane{fill:#8a7886;font:600 15px sans-serif}
+.lead{stroke:#4a3a45;stroke-width:1.2;stroke-dasharray:3 3}
+.app .fx{fill:#2a1f26;stroke:#6d5a67;stroke-width:2}
+.app .beam{fill:#fff3c4;opacity:0}
+.app.on .fx{fill:#fff3c4;stroke:#fff3c4}
+.app.on .beam{opacity:.16}
+.app.on .lane{fill:#fff3c4}
+.app.on .lead{stroke:#fff3c4;stroke-opacity:.5}
+.tag-on{fill:#000;font:800 11px sans-serif}
+.tag-bg{fill:#fff3c4}
+.seg{fill:#3a2a35}
+.pole-bg{fill:#120a10;stroke:#8a7886;stroke-width:2}
+.pct{fill:#fff;font:800 30px ui-monospace,monospace}
+.pillar-btn{cursor:pointer}
+.pillar-btn .cap{fill:#130d11;stroke:#ff6b8a;stroke-width:3}
+.pillar-btn.lit .cap{fill:#ffe9c8;stroke:#fff}
+.pillar-btn.down .cap{fill:#ff6b8a}
+.pillar-btn .hold{fill:none;stroke:#fff;stroke-width:5;stroke-linecap:round;transform:rotate(-90deg);transform-box:fill-box;transform-origin:center}
+.pillar-btn text{fill:#fff;font:800 22px sans-serif;pointer-events:none}
+.pillar-btn text.k{font:600 12px sans-serif;fill:#b4a8b0}
+.pillar-btn.lit text{fill:#000}
+
+/* per-side cluster (foreignObject inside the SVG, so it scales with the pole it belongs to) */
+.side{height:100%;display:flex;flex-direction:column;gap:6px;font-size:14px;color:var(--text)}
+.side.R{align-items:flex-end;text-align:right}
+.side h4{margin:0;font-size:15px;display:flex;gap:6px;align-items:center}
+.side.R h4{flex-direction:row-reverse}
+.role{font:800 11px/1 sans-serif;letter-spacing:.05em;padding:3px 6px;border-radius:999px;background:var(--rc,#3a2a35);color:#000}
+.role.dim{background:none;border:1px solid #6d5a67;color:#8a7886}
+.chips{display:flex;flex-wrap:wrap;gap:4px}
+.side.R .chips{justify-content:flex-end}
+.chips button{font-size:13px;padding:2px 7px}
+.hint{font-size:12px;color:var(--muted)}
+.legend{display:flex;flex-wrap:wrap;gap:3px 10px;font-size:12px;color:#b4a8b0}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px;vertical-align:-1px}
+
+/* emphasis: what makes sense now is bright, the rest dims; what the controller would ignore is struck */
+button.hot{border-color:var(--accent);background:var(--accent-dim);color:#fff;font-weight:700;box-shadow:0 0 8px -2px var(--accent)}
+button.dim{opacity:.35}
+button.no{opacity:.45;text-decoration:line-through}
+
+/* dock: test presses + tabbed panes */
+.dock{grid-area:dock;display:grid;grid-template-rows:auto minmax(0,1fr);gap:.5rem;min-height:0}
+.press{padding:.45rem .6rem;display:flex;flex-direction:column;gap:.3rem;min-height:0;overflow:auto}
+.press h3{margin:.1rem 0 0;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);display:flex;justify-content:space-between}
+.press h3 span{text-transform:none;letter-spacing:0}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+.press button{font-size:12px;padding:3px 4px;white-space:nowrap}
+.press button small{display:block;font-size:10px;color:var(--muted);font-weight:400}
+.panes{display:flex;flex-direction:column;padding:.35rem .6rem;min-height:0}
+.tabs{display:flex;gap:3px;margin-bottom:.3rem}
+.tabs button{font-size:12px;padding:2px 8px;white-space:nowrap}
+.tabs button.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.tabs .count{font-size:10px;opacity:.8}
+.pane{flex:1;min-height:0;overflow-y:auto}
+.pane[hidden]{display:none}
+.feed{list-style:none;margin:0;padding:0;font-size:12px}
+.feed li{padding:4px 0;border-bottom:1px solid #3a2433}
+.feed .t{font:11px ui-monospace,monospace;color:var(--muted);margin-right:5px}
+.feed .s{font-weight:800;margin-right:4px}
+.feed .s.L{color:var(--lime)} .feed .s.R{color:var(--blueUi)} .feed .s.B{color:var(--pink)}
+.feed .reply{display:block;padding-left:1.2rem;color:#c9b8be}
+.feed .reply.ign{color:#ffb38a}
+.feed li.new{animation:flash 1.2s}
+@keyframes flash{from{background:var(--accent-dim)}to{background:none}}
+.rules{display:grid;gap:4px;font-size:12px;color:var(--muted)}
+.rules div{border:1px solid #ffffff14;border-radius:6px;padding:4px 6px}
+.rules div.active{border-color:var(--accent);color:var(--text);background:rgba(255,105,180,.08)}
+.rules b{color:var(--text)}
+.mono{font:11px/1.5 ui-monospace,monospace}
+.status dl{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;margin:0 0 6px}
+.status dt{color:var(--muted)} .status dd{margin:0}
+.devs{display:flex;flex-wrap:wrap;gap:4px}
+.devs button.on{background:var(--accent-dim);border-color:var(--accent)}
+
+/* song map */
+.song{grid-area:song;padding:.35rem .75rem .45rem;display:flex;flex-direction:column;gap:4px}
+.song-head{display:flex;gap:.6rem;align-items:center;font-size:12px;white-space:nowrap;overflow:hidden}
+.song-head .title{font-weight:700}
+.song-head .seek{display:flex;gap:4px;margin-left:auto}
+.song-head .seek button{font-size:11px;padding:1px 6px}
+.song-head .time{font:700 13px ui-monospace,monospace;min-width:9.5em;text-align:right}
+.bar{position:relative;height:30px;border:1px solid var(--border);border-radius:6px;background:#0d0a0b;cursor:pointer}
+.sec{position:absolute;top:0;bottom:0;border-right:1px solid #0d0a0b;color:#000;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;overflow:hidden;white-space:nowrap;opacity:.5}
+.sec.cur{opacity:1;box-shadow:inset 0 0 0 2px #fff}
+.sec.past{opacity:.3}
+.cut{position:absolute;top:-5px;bottom:-5px;border-left:2px dashed var(--danger);z-index:2}
+.cut::after{content:'skip ✕ after';position:absolute;top:-1px;left:3px;font-size:9px;color:var(--danger);white-space:nowrap;background:#0d0a0b;padding:0 2px;border-radius:2px}
+.th{position:absolute;top:-5px;bottom:-5px;width:0;border-left:2px solid #fff}
+.th::before{content:'⚡';position:absolute;top:-3px;left:-6px;font-size:10px}
+.th.faint{opacity:.35}
+.th-win{position:absolute;top:0;bottom:0;background:repeating-linear-gradient(45deg,#ffffff8c 0 3px,#ffffff22 3px 6px)}
+.ph{position:absolute;top:-6px;bottom:-6px;width:3px;margin-left:-1px;background:#fff;box-shadow:0 0 6px #fff}
+.song-empty{height:30px;border:1px dashed var(--border);border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px}
+/* wide screens: the dock splits into two columns (presses | panes) */
+@media (min-width:1800px){
+  .emu{grid-template-columns:minmax(0,1fr) 330px minmax(400px,24vw);grid-template-areas:"now now now" "stage press panes" "song song song"}
+  .dock{display:contents}
+  .press{grid-area:press} .panes{grid-area:panes}
+}
+</style>
+</head>
+<body>
+<header class="header"><h1>🦩 The Flamingods Stage</h1>
+  <nav><span>Songs</span><span>Playlists</span><span>Stage</span><span>Pillar</span><span>Stats</span><span>Test</span><span class="active">Emulator</span></nav>
+</header>
+
+<div class="emu" id="emu">
+  <!-- 1. NOW banner -->
+  <section class="card now" aria-live="polite">
+    <div class="pill" id="pill"></div>
+    <div class="now-text"><b id="nowText"></b><div class="why" id="whyText"></div></div>
+    <div class="next" aria-label="What the next press on each side does">
+      <span class="who L">← Left next:</span><span class="what" id="nextL"></span>
+      <span class="who R">→ Right next:</span><span class="what" id="nextR"></span>
+    </div>
+  </section>
+
+  <!-- 2. Stage hero (SVG built below) -->
+  <section class="card stage" aria-label="Stage"><svg id="svg" viewBox="-160 -60 1040 660" role="img" aria-label="The stage"></svg></section>
+
+  <!-- 3. Dock: test presses + tabbed panes -->
+  <div class="dock">
+    <section class="card press" aria-label="Test presses">
+      <h3>Launch a game <span>from idle</span></h3>
+      <div class="grid3" data-g="launch">
+        <button data-id="L1">Solo<small>L×1</small></button>
+        <button data-id="both1">Duet<small>Both×1</small></button>
+        <button data-id="both2">Showoff<small>Both×2</small></button>
+        <button data-id="both3">Thunder<small>Both×3</small></button>
+        <button data-id="L2R3">Fail<small>L×2 + R×3</small></button>
+        <button data-id="L1Rlate">Late<small>L×1 then R×1</small></button>
+      </div>
+      <h3>Both pillars <span>first presses 30 ms apart</span></h3>
+      <div class="grid4" data-g="both">
+        <button data-id="both1">Both ×1</button><button data-id="both2">Both ×2</button><button data-id="both3">Both ×3</button>
+        <button data-id="bothlive" title="press = both at once; hold 1.5 s = stop">Both live</button>
+      </div>
+      <h3>In song <span>left pillar</span></h3>
+      <div class="grid4" data-g="song">
+        <button data-id="L2">Claps<small>×2</small></button><button data-id="L3">Special<small>×3</small></button>
+        <button data-id="L4">Skip<small>×4</small></button><button data-id="Lhold">Stop<small>hold</small></button>
+      </div>
+    </section>
+
+    <section class="card panes">
+      <div class="tabs" role="tablist">
+        <button data-tab="feed" class="active">Feed</button>
+        <button data-tab="rules">Light rules</button>
+        <button data-tab="log">Night log</button>
+        <button data-tab="status">Status &amp; devices</button>
+      </div>
+      <div class="pane" data-pane="feed"><ol class="feed" id="feed"></ol></div>
+      <div class="pane" data-pane="rules" hidden><div class="rules" id="rules"></div></div>
+      <div class="pane mono" data-pane="log" hidden id="log"></div>
+      <div class="pane status" data-pane="status" hidden id="status"></div>
+    </section>
+  </div>
+
+  <!-- 4. Song map -->
+  <section class="card song" aria-label="Song map">
+    <div class="song-head">
+      <span class="title" id="songTitle"></span><span id="songSec"></span>
+      <span class="seek" id="seek"></span>
+      <span class="time" id="songTime"></span>
+    </div>
+    <div id="bar"></div>
+  </section>
+</div>
+
+<div class="mock-cycle">mockup state:<span id="cycle"></span><button id="nextState">next ▶</button></div>
+
+<script>
+// ---------- fake data: the example song (data/music/*.analysis.json, 117.5 bpm) ----------
+const DUR = 235.72, BPM = 117.5, BEAT = 60 / BPM;
+const SECTIONS = [['intro',0,16.42],['verse',16.42,32.72],['pre_chorus',32.72,40.89],['chorus',40.89,57.21],['verse',57.21,73.54],
+  ['pre_chorus',73.54,81.71],['chorus',81.71,91.91],['instrumental',91.91,106.16],['bridge',106.16,122.51],['verse',122.51,138.81],
+  ['pre_chorus',138.81,144.92],['chorus',144.92,157.2],['post_chorus',157.2,183.69],['outro',183.69,235.72]];
+const CUTOFF = (57.21 + 73.54) / 2;                    // middle of verse 2
+const THUNDER = [73.54, 91.91, 122.51, 144.92];        // end of verse 2, then every 2nd section change, never into the last
+const COL = { pink: '#FF1493', lime: '#7DFF00', blue: '#2f6bff', white: '#ffffff' };
+const verseNo = i => SECTIONS.slice(0, i + 1).filter(s => s[0] === 'verse').length;
+const owner = (i, game) => {                          // whose section: verses alternate L, R, L; the rest and the last = both
+  if (!game || game === 'solo') return 'both';
+  const s = SECTIONS[i];
+  if (s[0] !== 'verse' || i === SECTIONS.length - 1) return 'both';
+  return verseNo(i) % 2 ? 'L' : 'R';
+};
+const OWN_COL = { L: 'lime', R: 'blue', both: 'pink' };
+const fmt = t => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, '0')}`;
+
+// ---------- the states the mockup cycles through ----------
+const STATES = {
+  idle: {
+    pill: ['IDLE', 'var(--muted)', 'waiting'], game: null, t: null,
+    now: 'Idle: nothing playing, waiting for someone to launch a game.',
+    why: 'Lights: each pole runs the pillar’s own idle rainbow · perimeter breathes pink · every appliance off.',
+    next: { L: '<em>×1 alone = Solo</em> · with Right: 1+1 Duet · 2+2 Showoff · 3+3 Thunder · counts differ = fail',
+            R: 'same as Left: the first press opens a 500 ms window for the other side to join' },
+    poles: { L: { kind: 'rainbow', role: ['pillar idle', null] }, R: { kind: 'rainbow', role: ['pillar idle', null] } },
+    perim: { c: 'pink', a: .18 }, on: [],
+    hot: ['L1', 'both1', 'both2', 'both3', 'L2R3', 'L1Rlate', 'bothlive', 'L×1', 'R×1', 'L×2', 'R×2', 'L×3', 'R×3'],
+    dim: ['L2', 'L3', 'L4'], no: {},
+    rules: 'idle',
+  },
+  duet: {
+    pill: ['PLAYING', 'var(--pink)', 'duet'], game: 'duet', t: 24.8,
+    now: 'Playing Duet · verse 1 · Left’s turn to sing',
+    why: 'Lights: left pole lime glow (Left sings), right pole dim · perimeter pink (duet = together) · spotlights ON (verse rule).',
+    next: { L: '×2 claps · ×3 special · <em>×4 skip</em> (until 1:05.4) · hold stop · ×1 nothing',
+            R: '×2 claps · ×3 special · ×4 skip · hold stop · ×1 nothing' },
+    poles: { L: { kind: 'glow', c: 'lime', role: ['SINGING', 'lime'] }, R: { kind: 'dim', c: 'blue', role: ['resting', null] } },
+    perim: { c: 'pink', a: .35 }, on: ['spotlights'],
+    hot: ['L2', 'L3', 'L4', 'Lhold', 'L×2', 'R×2', 'L×3', 'R×3', 'L×4', 'R×4', 'Lhold', 'Rhold'],
+    dim: ['L1', 'both1', 'both2', 'both3', 'L2R3', 'L1Rlate', 'L×1', 'R×1', 'L×5', 'R×5'], no: {},
+    rules: 'playing',
+  },
+  showoff: {
+    pill: ['PLAYING', 'var(--pink)', 'showoff'], game: 'showoff', t: 62.1,
+    now: 'Playing Showoff · verse 2 · Right’s turn to show off',
+    why: 'Lights: right pole blue glow (Right’s verse), left pole dim · right half of the perimeter blue · spotlights ON (verse rule).',
+    next: { L: '×2 claps · ×3 special · <em>×4 skip</em> (3.3 s left, cutoff 1:05.4) · hold stop',
+            R: '×2 claps · ×3 special · <em>×4 skip</em> (3.3 s left) · hold stop' },
+    poles: { L: { kind: 'dim', c: 'lime', role: ['resting', null] }, R: { kind: 'glow', c: 'blue', role: ['SHOWING OFF', 'blue'] } },
+    perim: { c: 'blue', a: .55, side: 'R', rest: { c: 'pink', a: .08 } }, on: ['spotlights'],
+    hot: ['L2', 'L3', 'L4', 'Lhold', 'L×2', 'R×2', 'L×3', 'R×3', 'L×4', 'R×4', 'Lhold', 'Rhold'],
+    dim: ['L1', 'both1', 'both2', 'both3', 'L2R3', 'L1Rlate', 'L×1', 'R×1', 'L×5', 'R×5'], no: {},
+    rules: 'showoff',
+  },
+  thunder: {
+    pill: ['THUNDER', '#fff', 'window open'], game: 'thunder', t: 74.6,
+    now: 'Playing Thunder · end of verse 2 · window open on the LEFT pole, beat 2 of 4',
+    why: 'Lights: left pole white, draining 25% a beat (window closes in 2 beats) · right pole dark · perimeter flashed white on the change.',
+    next: { L: '<em>×1 = TAG now</em> → blackout on the next beat + smoke · ×2 claps ignored (active pole) · <s>×4 skip</s> past cutoff',
+            R: '<em>×2 = applause</em> (dark pole may clap) · ×1 nothing · <s>×4 skip</s> past cutoff · hold stop' },
+    poles: { L: { kind: 'fill', c: 'white', pct: 50, role: ['ACTIVE · TAG!', 'white'] }, R: { kind: 'off', role: ['dark · may clap', null] } },
+    perim: { c: 'white', a: .5 }, on: [],
+    hot: ['L×1', 'R×2', 'Lhold', 'Rhold', 'L3'],
+    dim: ['L1', 'both1', 'both2', 'both3', 'L2R3', 'L1Rlate', 'R×1', 'L×3', 'R×3', 'L×5', 'R×5'],
+    no: { 'L4': 'past the skip cutoff', 'L×4': 'past the skip cutoff', 'R×4': 'past the skip cutoff', 'L2': 'active pole may not clap', 'L×2': 'active pole may not clap' },
+    rules: 'thunder',
+  },
+  fail: {
+    pill: ['FAIL', '#fff', 'counts differ'], game: null, t: null,
+    now: 'Fail blink: Left pressed 2, Right pressed 3; the counts differ, so nothing starts.',
+    why: 'Lights: poles blink white L, R, L, R, then the last one fades · no perimeter · back to idle in 1.2 s.',
+    next: { L: 'nothing until idle (1.2 s)', R: 'nothing until idle (1.2 s)' },
+    poles: { L: { kind: 'blink', role: ['blink', 'white'] }, R: { kind: 'blink', role: ['blink', 'white'] } },
+    perim: null, on: [],
+    hot: [], dim: ['*'], no: {},
+    rules: 'fail',
+  },
+};
+const ORDER = ['idle', 'duet', 'showoff', 'thunder', 'fail'];
+const FEED = {
+  idle: [['20:14:02', 'R', 'Right held 1.7 s while idle', 'stop: everything off, stays idle', 'controller: all appliances off'],
+         ['20:12:40', '', 'Song ended (duet)', 'back to idle', 'controller: show idle → poles back to the pillar idle sequence']],
+  duet: [['20:15:01', 'B', 'Left 1× + Right 1×, 28 ms apart, while idle', 'together, equal counts 1 → Duet', 'controller: intro 3-2-1 pink both poles 100 → 66 → 33 %, then song “Example” starts'],
+         ['20:15:05', '', 'Section → verse 1 (16.4 s)', 'Left’s turn', 'controller: left pole lime glow · spotlights ON, floodlights off']],
+  showoff: [['20:21:09', 'B', 'Left 2× + Right 2×, 31 ms apart, while idle', 'Showoff', 'controller: intro L lime → R blue → merge pink'],
+            ['20:22:06', '', 'Section → verse 2 (57.2 s)', 'Right’s turn', 'controller: right pole blue glow, left dim · perimeter right half blue'],
+            ['20:22:10', 'L', 'Left pressed 2× while playing showoff at verse 2 61.0 s', 'claps', 'controller: ok → claps sound + claps sequence']],
+  thunder: [['20:30:44', 'R', 'Right pressed 4× while playing thunder at verse 2 69.1 s', 'skip', 'ignored: after the mid-verse-2 cutoff (65.4 s)', true],
+            ['20:30:45', '', 'Thunder countdown on the LEFT pole (69.5 s)', 'build −8…−5, rush −4…−1', 'controller: left pole white 12 → 100 %, right pole dark'],
+            ['20:30:49', '', 'Change at 73.5 s: window open', '4 beats', 'controller: left 100 % solid, draining 25 % a beat']],
+  fail: [['20:33:12', 'B', 'Left 2× + Right 3×, 30 ms apart, while idle', 'counts differ → fail blink', 'controller: white blinks L, R, L, R then fade; nothing starts']],
+};
+const RULES = [['idle', 'Idle', 'poles: pillar idle sequence · perimeter: pink breathe · appliances off'],
+  ['launching', 'Launching', 'presser’s pole 33 / 66 / 100 % per click, pink'],
+  ['intro', 'Intro 3-2-1', 'poles 100 → 66 → 33 % in the game’s colours'],
+  ['playing', 'Playing (solo / duet)', 'singer’s pole glows in their colour, the other dim · chorus = floodlights, verse = spotlights'],
+  ['showoff', 'Showoff turns', 'verse 1 L lime, verse 2 R blue, verse 3 L lime; the rest and the last section pink'],
+  ['thunder', 'Thunder window', 'active pole white: build, rush (pulse ×2), open 100 %, drain over W beats; the dark pole off'],
+  ['fail', 'Fail', 'white blinks L, R, L, R, last fades; no perimeter']];
+
+// ---------- the stage SVG ----------
+const NS = 'http://www.w3.org/2000/svg';
+const POLY = [[40,25],[680,25],[680,195],[416,195],[416,367],[303,367],[303,195],[40,195]];
+const PX = { L: 271, R: 442 }, SEG = 24, BTN_Y = 395, POLE_TOP = 430, SEG_H = 6.5;
+function perimeter(step) {
+  const pts = []; let carry = 0;
+  POLY.forEach((a, e) => { const b = POLY[(e + 1) % POLY.length], len = Math.hypot(b[0]-a[0], b[1]-a[1]);
+    let d = carry; for (; d < len; d += step) pts.push([a[0] + (b[0]-a[0]) * d / len, a[1] + (b[1]-a[1]) * d / len]); carry = d - len; });
+  return pts;
+}
+const LEDS = perimeter(15);
+// Appliances: a fixture spot + a reserved label slot in a lane (top lane above the stage, side gutters,
+// the audience strip under the front edge). Slots never overlap each other or the LED outline.
+const APPLIANCES = [
+  { name: 'backLights', label: 'back lights', kind: 'bar', at: [[360, 44]], lab: [360, -22, 'middle'] },
+  { name: 'movingLights', label: 'moving lights', kind: 'head', at: [[190, 80], [530, 80]], lab: [[190, -22, 'middle'], [530, -22, 'middle']] },
+  { name: 'spotlights', label: 'spotlights', kind: 'spot', at: [[360, 104]], lab: [378, 108, 'start'] },
+  { name: 'floodLights (x2)', label: 'floodlight', kind: 'flood', at: [[84, 70], [636, 70]], lab: [[22, 74, 'end'], [698, 74, 'start']] },
+  { name: 'flickers', label: 'flickers', kind: 'lamp', at: [[84, 150], [636, 150]], lab: [[22, 154, 'end'], [698, 154, 'start']] },
+  { name: 'smoke', label: 'smoke', kind: 'smoke', at: [[250, 170]], lab: [250, 226, 'middle'] },
+  { name: 'bubbles', label: 'bubbles', kind: 'bubbles', at: [[470, 170]], lab: [470, 226, 'middle'] },
+];
+const el = (tag, attrs = {}, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent?.appendChild(e); return e; };
+const svg = document.getElementById('svg');
+const R = {};
+function build() {
+  el('path', { class: 'body', d: 'M40 25H680V195H416V367H303V195H40Z' }, svg);
+  el('text', { class: 'zone', x: 360, y: 290, 'text-anchor': 'middle', transform: 'rotate(-90 360 290)' }, svg).textContent = 'CATWALK';
+  el('text', { class: 'zone', x: 356, y: 400, 'text-anchor': 'middle' }, svg).textContent = 'entrance';
+  el('text', { class: 'zone', x: 360, y: 186, 'text-anchor': 'middle', style: 'font-size:14px' }, svg).textContent = 'STAGE';
+  R.puff = el('circle', { cx: 360, cy: 140, r: 0, fill: '#fff', 'fill-opacity': .4 }, svg);
+  R.app = {};
+  for (const a of APPLIANCES) {
+    const g = el('g', { class: 'app' }, svg); R.app[a.name] = g;
+    const labs = Array.isArray(a.lab[0]) ? a.lab : [a.lab];
+    a.at.forEach(([x, y], i) => {
+      const [lx, ly, anchor] = labs[i] ?? labs[0];
+      if (labs[i]) el('line', { class: 'lead', x1: anchor === 'end' ? lx + 4 : anchor === 'start' && a.kind !== 'spot' ? lx - 4 : lx, y1: anchor === 'middle' ? (ly < y ? ly + 6 : ly - 16) : ly - 5, x2: x, y2: y }, g);
+      if (a.kind === 'bar') { el('rect', { class: 'beam', x: x - 230, y, width: 460, height: 120 }, g); el('rect', { class: 'fx', x: x - 230, y: y - 4, width: 460, height: 8, rx: 4 }, g); }
+      if (a.kind === 'head') { el('path', { class: 'beam', d: `M${x - 8} ${y}L${x - 60} ${y + 110}H${x + 40}Z` }, g); el('rect', { class: 'fx', x: x - 11, y: y - 9, width: 22, height: 18, rx: 4 }, g); }
+      if (a.kind === 'spot') { el('path', { class: 'beam', d: `M${x - 6} ${y}L${x - 40} ${y + 260}H${x + 40}L${x + 6} ${y}Z` }, g); el('circle', { class: 'fx', cx: x, cy: y, r: 9 }, g); }
+      if (a.kind === 'flood') { el('path', { class: 'beam', d: `M${x} ${y}L${x + (x < 360 ? 200 : -200)} ${y - 30}V${y + 110}Z` }, g); el('rect', { class: 'fx', x: x - 14, y: y - 8, width: 28, height: 16, rx: 3 }, g); }
+      if (a.kind === 'lamp') { el('circle', { class: 'beam', cx: x, cy: y, r: 26 }, g); el('circle', { class: 'fx', cx: x, cy: y, r: 8 }, g); }
+      if (a.kind === 'smoke') { el('circle', { class: 'beam', cx: x - 14, cy: y - 18, r: 24 }, g); el('circle', { class: 'beam', cx: x + 12, cy: y - 26, r: 28 }, g); el('rect', { class: 'fx', x: x - 13, y: y - 7, width: 26, height: 14, rx: 3 }, g); }
+      if (a.kind === 'bubbles') { [[-16, -22, 6], [6, -34, 9], [18, -16, 5]].forEach(([dx, dy, r]) => el('circle', { class: 'beam', cx: x + dx, cy: y + dy, r, style: 'fill:none;stroke:#9be7ff;stroke-width:2' }, g)); el('rect', { class: 'fx', x: x - 13, y: y - 7, width: 26, height: 14, rx: 3 }, g); }
+      if (labs[i]) {
+        const t = el('text', { class: 'lane', x: lx, y: ly, 'text-anchor': anchor }, g); t.textContent = a.label;
+        el('tspan', { class: 'onoff', dx: 5, style: 'font-size:11px;font-weight:800' }, t);
+      }
+    });
+  }
+  R.leds = LEDS.map(([x, y]) => [el('circle', { cx: x, cy: y, r: 9, 'fill-opacity': 0 }, svg), el('circle', { class: 'led', cx: x, cy: y, r: 3.8 }, svg)]);
+  R.poles = {};
+  for (const s of ['L', 'R']) {
+    const x = PX[s];
+    el('rect', { class: 'pole-bg', x: x - 17, y: POLE_TOP - 4, width: 34, height: SEG * SEG_H + 6, rx: 5 }, svg);
+    const segs = Array.from({ length: SEG }, (_, k) => el('rect', { class: 'seg', x: x - 13, y: POLE_TOP + (SEG - 1 - k) * SEG_H, width: 26, height: 5, rx: 1.5 }, svg));
+    const pct = el('text', { class: 'pct', x: s === 'L' ? x - 26 : x + 26, y: 470, 'text-anchor': s === 'L' ? 'end' : 'start' }, svg);
+    const btn = el('g', { class: 'pillar-btn', tabindex: 0, role: 'button', 'aria-label': `${s === 'L' ? 'Left' : 'Right'} pillar button` }, svg);
+    el('circle', { class: 'cap', cx: x, cy: BTN_Y, r: 27 }, btn);
+    const hold = el('circle', { class: 'hold', cx: x, cy: BTN_Y, r: 34, 'stroke-dasharray': '0 999' }, btn);
+    el('text', { x, y: BTN_Y + 4, 'text-anchor': 'middle' }, btn).textContent = s;
+    const k = el('text', { class: 'k', x, y: BTN_Y + 18, 'text-anchor': 'middle' }, btn); k.textContent = s === 'L' ? '←' : '→';
+    // the side's own controls, by its pole (foreignObject: scales with the drawing)
+    const fo = el('foreignObject', { x: s === 'L' ? -150 : 552, y: 395, width: 318, height: 200 }, svg);
+    fo.innerHTML = `<div xmlns="http://www.w3.org/1999/xhtml" class="side ${s}">
+      <h4>${s === 'L' ? 'Left pillar' : 'Right pillar'} <span class="role"></span></h4>
+      <div class="hint" data-tap>click = 1 tap · quick clicks = N taps · hold 1.5 s = stop · key <kbd>${s === 'L' ? '←' : '→'}</kbd></div>
+      <div class="chips">${[1, 2, 3, 4, 5].map(n => `<button data-id="${s}×${n}">×${n}</button>`).join('')}<button data-id="${s}hold">hold</button></div>
+      <div class="hint">pole: <span data-polerole></span></div>
+    </div>`;
+    R.poles[s] = { segs, pct, btn, hold, fo };
+  }
+  const leg = el('foreignObject', { x: -150, y: -58, width: 290, height: 60 }, svg);
+  leg.innerHTML = `<div xmlns="http://www.w3.org/1999/xhtml" class="legend">
+    <span><i style="background:${COL.lime}"></i>left sings</span><span><i style="background:${COL.blue}"></i>right sings</span>
+    <span><i style="background:${COL.pink}"></i>both / together</span><span><i style="background:#fff"></i>thunder · fail</span>
+    <span><i style="background:#3a2a35;border:1px solid #8a7886"></i>dim = resting</span><span>dots = perimeter LEDs · lit lamp = appliance ON</span></div>`;
+}
+
+// ---------- render a state ----------
+let cur = 'idle', blinkTimer = 0;
+const $ = s => document.querySelector(s);
+const rgba = (name, a) => { const h = COL[name]; const n = parseInt(h.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; };
+function paintPole(s, p, t = 0) {
+  const { segs, pct } = R.poles[s];
+  segs.forEach((e, k) => {
+    let fill = '#3a2a35';
+    if (p.kind === 'rainbow') fill = `hsl(${(k * 15 + t * 40) % 360} 80% 45%)`;
+    if (p.kind === 'glow') fill = rgba(p.c, .55 + .35 * (k / SEG));
+    if (p.kind === 'dim') fill = rgba(p.c, .14);
+    if (p.kind === 'fill' && k < (p.pct / 100) * SEG) fill = rgba(p.c, 1);
+    if (p.kind === 'blink' && p.lit) fill = '#fff';
+    e.style.fill = fill;
+  });
+  pct.textContent = p.kind === 'fill' ? `${p.pct}%` : p.kind === 'glow' ? 'sing' : p.kind === 'blink' && p.lit ? '100%' : '';
+  pct.style.fill = p.kind === 'glow' ? COL[p.c] : '#fff';
+  R.poles[s].btn.classList.toggle('lit', p.kind === 'fill' || (p.kind === 'blink' && !!p.lit));
+}
+function render() {
+  const S = STATES[cur];
+  document.getElementById('emu').dataset.state = cur;
+  const pill = $('#pill'); pill.style.setProperty('--c', S.pill[1]); pill.innerHTML = `${S.pill[0]}<small>${S.pill[2]}</small>`;
+  $('#nowText').textContent = S.now + (S.t != null ? ` · ${fmt(S.t)} / ${fmt(DUR)}` : '');
+  $('#whyText').textContent = S.why;
+  $('#nextL').innerHTML = S.next.L; $('#nextR').innerHTML = S.next.R;
+  // perimeter
+  R.leds.forEach(([halo, led], i) => {
+    const [x] = LEDS[i];
+    let p = S.perim;
+    if (p?.side && (p.side === 'L') !== (x < 360)) p = p.rest;
+    led.style.fill = p ? rgba(p.c, Math.min(1, p.a + .25)) : '';
+    halo.style.fill = p ? COL[p.c] : 'none'; halo.style.fillOpacity = p ? p.a * .4 : 0;
+  });
+  // appliances
+  for (const a of APPLIANCES) {
+    const on = S.on.includes(a.name);
+    R.app[a.name].classList.toggle('on', on);
+    R.app[a.name].querySelectorAll('.onoff').forEach(t => t.textContent = on ? 'ON' : 'off');
+  }
+  // poles + side clusters
+  clearInterval(blinkTimer);
+  for (const s of ['L', 'R']) {
+    const p = S.poles[s], role = R.poles[s].fo.querySelector('.role');
+    role.textContent = p.role[0]; role.className = 'role' + (p.role[1] ? '' : ' dim');
+    role.style.setProperty('--rc', p.role[1] ? COL[p.role[1]] : '');
+    R.poles[s].fo.querySelector('[data-polerole]').textContent =
+      { rainbow: 'the pillar’s own idle sequence', glow: `${p.c} glow (this side’s turn)`, dim: 'dim (not this side’s turn)', fill: `${p.pct}% white, draining 25%/beat`, off: 'dark', blink: 'white blink' }[p.kind];
+    paintPole(s, p);
+  }
+  if (cur === 'fail') { let n = 0; blinkTimer = setInterval(() => { const L = n % 2 === 0; paintPole('L', { kind: 'blink', lit: L }); paintPole('R', { kind: 'blink', lit: !L }); n = (n + 1) % 8; }, 250); }
+  if (cur === 'idle') { let t = 0; blinkTimer = setInterval(() => { t += .1; paintPole('L', S.poles.L, t); paintPole('R', S.poles.R, t + 3); }, 100); }
+  // emphasis
+  document.querySelectorAll('button[data-id]').forEach(b => {
+    const id = b.dataset.id;
+    b.classList.remove('hot', 'dim', 'no'); b.title = '';
+    if (S.no[id]) { b.classList.add('no'); b.title = `ignored now: ${S.no[id]}`; }
+    else if (S.hot.includes(id)) b.classList.add('hot');
+    else if (S.dim.includes('*') || S.dim.includes(id)) b.classList.add('dim');
+  });
+  renderSong(S); renderFeed(); renderPanes(S);
+  document.querySelectorAll('#cycle button').forEach(b => b.classList.toggle('on', b.dataset.s === cur));
+}
+function renderSong(S) {
+  const bar = $('#bar'), seek = $('#seek');
+  if (S.t == null) {
+    $('#songTitle').textContent = 'Song map'; $('#songSec').textContent = ''; $('#songTime').textContent = '–'; seek.innerHTML = '';
+    bar.className = 'song-empty'; bar.textContent = 'No song playing. Launch a game to see the sections, whose turn each one is, the skip cutoff and the thunder windows.';
+    return;
+  }
+  const curI = SECTIONS.findIndex(s => S.t >= s[1] && S.t < s[2]);
+  $('#songTitle').textContent = `Example song · ${BPM} bpm · ${S.game}`;
+  $('#songSec').textContent = `now: ${SECTIONS[curI][0]}${SECTIONS[curI][0] === 'verse' ? ' ' + verseNo(curI) : ''}`;
+  $('#songTime').textContent = `${fmt(S.t)} / ${fmt(DUR)}`;
+  seek.innerHTML = ['Skip cutoff −5 s', 'Next section −5 s', 'Verse 2 end −5 s', 'Thunder 1/4 −10 s'].map(l => `<button>${l}</button>`).join('');
+  bar.className = 'bar';
+  const p = t => `${(t / DUR) * 100}%`;
+  bar.innerHTML = SECTIONS.map((s, i) => {
+    const who = owner(i, S.game), c = COL[OWN_COL[who]], w = (s[2] - s[1]) / DUR * 100;
+    const lab = w > 5 ? `${s[0].replace('_', '-')}${s[0] === 'verse' ? ' ' + verseNo(i) : ''}${who === 'both' ? '' : ' · ' + who}` : who === 'both' ? '' : who;
+    return `<div class="sec ${i === curI ? 'cur' : i < curI ? 'past' : ''}" style="left:${p(s[1])};width:${w}%;background:${c}" title="${s[0]} ${s[1]}–${s[2]} s · ${who}">${lab}</div>`;
+  }).join('')
+    + (S.game === 'thunder' ? THUNDER.map(c => `<div class="th-win" style="left:${p(c - 8 * BEAT)};width:${(12 * BEAT) / DUR * 100}%"></div>`).join('') : '')
+    + THUNDER.map((c, i) => `<div class="th ${S.game === 'thunder' ? '' : 'faint'}" style="left:${p(c)}" title="thunder window ${i + 1}: change at ${c} s"></div>`).join('')
+    + `<div class="cut" style="left:${p(CUTOFF)}" title="skip cutoff ${CUTOFF.toFixed(2)} s"></div><div class="ph" style="left:${p(S.t)}"></div>`;
+}
+let extra = [];
+function renderFeed() {
+  const rows = [...extra, ...FEED[cur]];
+  $('#feed').innerHTML = rows.map(([t, s, what, means, reply, ign], i) =>
+    `<li class="${i < extra.length ? 'new' : ''}"><span class="t">${t}</span>${s ? `<span class="s ${s}">${s === 'B' ? 'L+R' : s}</span>` : ''}${what} → <b>${means}</b><span class="reply ${ign ? 'ign' : ''}">↳ ${reply}</span></li>`).join('');
+}
+function renderPanes(S) {
+  $('#rules').innerHTML = RULES.map(([id, title, text]) => `<div class="${id === S.rules ? 'active' : ''}"><b>${title}</b> · ${text}</div>`).join('');
+  $('#log').innerHTML = ['{"type":"launch_attempt","countL":2,"countR":2,"gapMs":31,"outcome":"showoff"}', '{"type":"song_start","game":"showoff","songId":"example"}',
+    '{"type":"window","verse":2,"pole":"L","outcome":"tag","pressOffsetMs":-120,"windowBeats":4,"bpm":117.5}', '{"type":"fault","kind":"markers_missing"}'].map(l => `<div>${l}</div>`).join('');
+  $('#status').innerHTML = `<dl><dt>State</dt><dd>${cur}${S.game ? ' · ' + S.game : ''}</dd><dt>Song</dt><dd>${S.t != null ? 'Example song' : '–'}</dd>
+    <dt>Thunder</dt><dd>${cur === 'thunder' ? 'window · L · beat 2' : '–'}</dd></dl>
+    <div class="devs">${APPLIANCES.map(a => `<button class="${S.on.includes(a.name) ? 'on' : ''}">${a.name}</button>`).join('')}</div>`;
+}
+
+// ---------- interactions (mock): tabs, state cycle, free-click pillars, script buttons ----------
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('active', x === b));
+  document.querySelectorAll('.pane').forEach(p => p.hidden = p.dataset.pane !== b.dataset.tab);
+});
+const clock = () => new Date().toTimeString().slice(0, 8);
+function log(side, what, means, reply) { extra.unshift([clock(), side, what, means, reply]); extra = extra.slice(0, 20); renderFeed(); }
+const MEAN = { idle: n => n === 1 ? 'Solo (if Right stays quiet 500 ms)' : `launch count ${n}, waiting for the other side`, fail: () => 'nothing (fail blink running)' };
+const meaning = n => (MEAN[cur] ?? (n => ({ 1: cur === 'thunder' ? 'thunder tag' : 'nothing', 2: 'claps', 3: 'special', 4: 'skip' })[n] ?? 'special'))(n);
+document.querySelectorAll('button[data-id]').forEach(b => b.onclick = () => log('', `Test button “${b.textContent.trim()}”`, 'scripted presses sent', 'controller reply appears here'));
+// free click: N quick clicks = N taps (400 ms gap closes the gesture), hold 1.5 s = stop
+const GAP = 400, HOLD = 1500;
+const pill = { L: { n: 0, down: 0, timer: 0, raf: 0 }, R: { n: 0, down: 0, timer: 0, raf: 0 } };
+function press(s) {
+  const p = pill[s]; if (p.down) return; p.down = performance.now(); clearTimeout(p.timer);
+  R.poles[s].btn.classList.add('down');
+  const tick = () => { const k = Math.min(1, (performance.now() - p.down) / HOLD); R.poles[s].hold.setAttribute('stroke-dasharray', `${k * 214} 999`); if (p.down) p.raf = requestAnimationFrame(tick); };
+  tick();
+}
+function release(s) {
+  const p = pill[s]; if (!p.down) return; const held = performance.now() - p.down; p.down = 0;
+  cancelAnimationFrame(p.raf); R.poles[s].hold.setAttribute('stroke-dasharray', '0 999'); R.poles[s].btn.classList.remove('down');
+  const name = s === 'L' ? 'Left' : 'Right';
+  if (held >= HOLD) { p.n = 0; log(s, `${name} held ${(held / 1000).toFixed(1)} s`, 'stop', 'controller: show idle, music and appliances off'); return; }
+  p.n++; R.poles[s].fo.querySelector('[data-tap]').textContent = `${p.n} tap${p.n > 1 ? 's' : ''}…`;
+  p.timer = setTimeout(() => { log(s, `${name} pressed ${p.n}× while ${cur}`, meaning(p.n), 'controller: ok'); R.poles[s].fo.querySelector('[data-tap]').innerHTML = `click = 1 tap · quick clicks = N taps · hold 1.5 s = stop · key <kbd>${s === 'L' ? '←' : '→'}</kbd>`; p.n = 0; }, GAP);
+}
+
+build();
+for (const s of ['L', 'R']) { const b = R.poles[s].btn; b.onpointerdown = e => { b.setPointerCapture(e.pointerId); press(s); }; b.onpointerup = () => release(s); b.onpointercancel = () => release(s); }
+const KEYS = { ArrowLeft: 'L', ArrowRight: 'R' };
+addEventListener('keydown', e => { if (KEYS[e.key] && !e.repeat) { e.preventDefault(); press(KEYS[e.key]); } });
+addEventListener('keyup', e => { if (KEYS[e.key]) release(KEYS[e.key]); });
+$('#cycle').innerHTML = ORDER.map(s => `<button data-s="${s}">${s}</button>`).join('');
+$('#cycle').onclick = e => { if (e.target.dataset.s) { cur = e.target.dataset.s; extra = []; render(); } };
+$('#nextState').onclick = () => { cur = ORDER[(ORDER.indexOf(cur) + 1) % ORDER.length]; extra = []; render(); };
+cur = location.hash.slice(1) in STATES ? location.hash.slice(1) : 'idle';
+render();
+</script>
+</body>
+</html>
