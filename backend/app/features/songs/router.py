@@ -1,3 +1,4 @@
+import json
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
@@ -101,6 +102,16 @@ def stream_song(song_id: int, db: Session = Depends(get_db)):
             "Access-Control-Allow-Origin": "*",
         }
     )
+
+
+@router.put("/{song_id}/analysis")
+def put_analysis(song_id: int, analysis: dict, db: Session = Depends(get_db)):
+    """Store the analyzer's JSON as the song's sidecar (<stem>.analysis.json) so the show gets markers."""
+    song = services.get_song(db, song_id)
+    if not song:
+        raise HTTPException(status_code=404, detail="Song not found")
+    Path(song.file_path).with_suffix(".analysis.json").write_text(json.dumps(analysis))
+    return {"message": "Analysis stored"}
 
 
 @router.patch("/{song_id}", response_model=SongResponse)
