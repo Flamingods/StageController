@@ -163,3 +163,24 @@ Porting pitfalls (TypeScript preview):
   loses precision past 2^53.
 - fade: C integer division truncates toward zero, so use `Math.trunc`, not `Math.floor`, when b < a.
 - rainbow: `((i − shift)·5) & 0xFF` matches the C uint32 wrap.
+
+## 9. Show poles driven by the hub (added 2026-10-17)
+
+The Pi draws each pillar's pole (docs/show-events-contract.md) through the **preview** of section 7,
+so the firmware needs no show-event code. `app/features/pillar/poles.py` owns it.
+
+- Pillar 1 is always **L**, pillar 2 always **R**.
+- Press: `POST /api/buttons/press/<action>?pillar_id=N` goes to the show director as a side-aware
+  press of that side; the tap count is the one the action stands for (4 = skip, 5+ = special).
+  Without `pillar_id` the legacy path is unchanged.
+- Every show event turns that side's pole into a looping sequence: `solid` = a frame lit to `pct`;
+  `glow` = the whole strip at `level`; `pulse`/`blink` = the `pulse` effect at the event's `ms`;
+  `drain` = a custom frame falling from the top over `ms`; thunder's rising pole = one custom frame
+  that climbs from `pct` to the top over the rest of `cooldownMs` (the ESP runs the rise, so the
+  per-percent events do not restart it). A new preview id is issued only when the look changes,
+  and again after each press from that pillar (a gesture ends a preview on the ESP).
+- Poll `?client=pillar&pillar_id=N`: `pillar_preview_id` is the editor's draft when one plays,
+  else that pillar's pole id; `idle` sets it to 0 and the pillar falls back to its slots.
+- `GET /api/pillar/preview.bin` has no pillar id: the Pi serves the pole of the pillar that last
+  polled from the caller's address. Show previews do not expire.
+- Latency: a pole change reaches the strip within one poll (~1 s).

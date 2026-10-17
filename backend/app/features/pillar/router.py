@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 
 from . import service
 from .defaults import DEFAULT_SEQUENCES, SLOTS
+from .poles import poles
 from .schemas import Sequence
 
 router = APIRouter(prefix="/pillar", tags=["pillar"])
@@ -64,8 +65,10 @@ def stop_preview():
 
 
 @router.get("/preview.bin")
-def get_preview_binary():
-    data = service.preview.binary()
+def get_preview_binary(request: Request):
+    """The editor's draft, else the show pole of the pillar polling from this address (the ESP's
+    preview fetch carries no pillar id)."""
+    data = service.preview.binary() or poles.binary(poles.pillar_at(request.client.host if request.client else None))
     if data is None:
         raise HTTPException(status_code=404, detail="No preview playing")
     return Response(content=data, media_type=BINARY)
