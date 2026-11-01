@@ -98,23 +98,23 @@ class PreviewState:
 
 
 class PillarStatus:
-    """When the pillar last polled the player state, and which plans version it runs."""
+    """Per side (L/R): when that pillar last polled the player state and which plans version it runs."""
 
     def __init__(self):
         self.reset()
 
     def reset(self):
-        self._seen_at: float | None = None
-        self._running_version: int | None = None
+        self._sides: dict[str, tuple[float, int | None]] = {}
 
-    def record_poll(self, running_version: int | None):
-        self._seen_at = time.monotonic()
-        self._running_version = running_version
+    def record_poll(self, side: str, running_version: int | None):
+        self._sides[side] = (time.monotonic(), running_version)
 
     def snapshot(self) -> dict:
+        """Only sides that have polled; the editor shows the others as "not seen"."""
+        now = time.monotonic()
         return {
-            "pillar_seen_s_ago": None if self._seen_at is None else time.monotonic() - self._seen_at,
-            "pillar_running_version": self._running_version,
+            side: {"seen_s_ago": now - seen_at, "running_version": version}
+            for side, (seen_at, version) in sorted(self._sides.items())
         }
 
 

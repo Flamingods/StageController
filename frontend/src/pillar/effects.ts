@@ -28,6 +28,16 @@ const SPARKLE_WINDOW_MS = 80;
 const PULSE_MS = 750;
 const BAND_PASS_MS = 500;
 const BAND_WIDTH = 15;
+const SNAKE_PASS_MS = 3000;
+const SNAKE_LENGTH = 36;
+const SNAKE_TAIL_FADE = 9;
+const TRAIL_LIFE_MS = 1500;
+const TRAIL_CHANCE = 35;
+const TWINKLE_MS = 300;
+const STRIPE_PERIOD = 32;
+const STRIPE_LIT = 20;
+const STRIPE_FEATHER = 3;
+const SUB = 256; // positions in 1/256 LED
 
 const div = (a: number, b: number) => Math.trunc(a / b);
 
@@ -66,6 +76,17 @@ function hueToRgb(hue: number): Rgb {
     default: return [255, 0, fall];
   }
 }
+
+// Same wheel with 8 fractional bits, blended between neighbouring hues.
+function hueToRgb16(hue16: number): Rgb {
+  const a = hueToRgb((hue16 >> 8) & 0xff);
+  const b = hueToRgb(((hue16 >> 8) + 1) & 0xff);
+  const f = hue16 & 0xff;
+  return [lerp8(a[0], b[0], f, 256), lerp8(a[1], b[1], f, 256), lerp8(a[2], b[2], f, 256)];
+}
+
+// 0..255 -> 0..255 with eased ends (smoothstep)
+const ease = (x: number) => div(x * x * (3 * 255 - 2 * x), 255 * 255);
 
 function hash(a: number, b: number, c: number): number {
   let x = (Math.imul(a, 2654435761) ^ Math.imul(b, 40503) ^ Math.imul(c, 2246822519)) >>> 0;
@@ -165,6 +186,77 @@ function fade(p: EffectParams, t: number, out: Strip) {
   fillAll(out, [lerp8(a[0], b[0], t, p.durationMs), lerp8(a[1], b[1], t, p.durationMs), lerp8(a[2], b[2], t, p.durationMs)]);
 }
 
+// The rainbow cut into segments with dark gaps; mirrors renderStripes in StagePillar.
+function stripes(p: EffectParams, t: number, out: Strip) {
+  const shift = div(t * SUB, scaled(RAINBOW_MS_PER_LED, p.speedX16));
+  const up = p.direction !== 'down';
+  const lit = STRIPE_LIT * SUB;
+  const feather = STRIPE_FEATHER * SUB;
+  for (let i = 0; i < PIXEL_COUNT; i++) {
+    const x = (up ? i * SUB - shift : i * SUB + shift) >>> 0; // C uint32 wrap
+    const m = x % (STRIPE_PERIOD * SUB);
+    let level = 0;
+    if (m < lit) {
+      const edge = Math.min(m, lit - m);
+      level = edge >= feather ? 255 : ease(div(255 * edge, feather));
+    }
+    set(out, i, level ? scale(hueToRgb16(Math.imul(x, 5) & 0xffff), level) : BLACK);
+  }
+}
+
+// A rainbow snake climbs the dark pillar, leaving twinkling sparkles behind it that fade out.
+// Mirrors renderSnake in StagePillar lib/pillar/led_catalogue.cpp.
+function snake(p: EffectParams, t: number, seed: number, out: Strip) {
+  const passMs = scaled(SNAKE_PASS_MS, p.speedX16);
+  const lifeMs = scaled(TRAIL_LIFE_MS, p.speedX16);
+  const passes = div(p.durationMs, passMs) || 1;
+  const pass = div(t, passMs) % passes;
+  const tp = t % passMs;
+  const travel = (PIXEL_COUNT + SNAKE_LENGTH) * SUB;
+  const body = SNAKE_LENGTH * SUB;
+  const tailFade = SNAKE_TAIL_FADE * SUB;
+  const head = div(tp * travel, passMs);
+  const headHue = div(tp * 65536, passMs);
+  const up = p.direction !== 'down';
+  for (let i = 0; i < PIXEL_COUNT; i++) {
+    const pos = (up ? i : PIXEL_COUNT - 1 - i) * SUB;
+    let o: Rgb = BLACK;
+
+    const passedAt = div(pos * passMs, travel);
+    let age: number;
+    let trailPass: number;
+    if (tp >= passedAt) {
+      age = tp - passedAt;
+      trailPass = pass;
+    } else {
+      age = tp + passMs - passedAt;
+      trailPass = pass ? pass - 1 : passes - 1;
+    }
+    if (age < lifeMs && hash(i, seed, trailPass) % 100 < TRAIL_CHANCE) {
+      let fadeLevel = div(255 * (lifeMs - age), lifeMs);
+      fadeLevel = div(fadeLevel * fadeLevel, 255);
+      const phase = div(((t + hash(i, seed, 0x5eed) % TWINKLE_MS) % TWINKLE_MS) * 510, TWINKLE_MS);
+      const twinkle = ease(phase < 255 ? phase : 510 - phase);
+      const level = div(fadeLevel * (64 + div(191 * twinkle, 255)), 255);
+      const c = hueToRgb16(div(passedAt * 65536, passMs) & 0xffff);
+      const w: Rgb = [c[0] + div((255 - c[0]) * 2, 5), c[1] + div((255 - c[1]) * 2, 5), c[2] + div((255 - c[2]) * 2, 5)];
+      o = scale(w, level);
+    }
+
+    const d = head - pos;
+    let level = 0;
+    if (d > -SUB && d < 0) level = div(255 * (d + SUB), SUB);
+    else if (d >= 0 && d < SUB) level = 255;
+    else if (d >= SUB && d < body - tailFade) level = 255;
+    else if (d >= SUB && d < body) level = ease(div(255 * (body - d), tailFade));
+    if (level) {
+      const c = scale(hueToRgb16((headHue - div(d * 65536, body)) & 0xffff), level);
+      o = [Math.max(o[0], c[0]), Math.max(o[1], c[1]), Math.max(o[2], c[2])];
+    }
+    set(out, i, o);
+  }
+}
+
 /** Draw the effect at msSinceStart into out (seed varies sparkle, like the ESP's start millis). */
 export function renderEffect(p: EffectParams, msSinceStart: number, seed: number, out: Strip) {
   const t = msSinceStart < p.durationMs ? msSinceStart : Math.max(0, p.durationMs - 1);
@@ -177,6 +269,8 @@ export function renderEffect(p: EffectParams, msSinceStart: number, seed: number
     case 'pulse': pulse(p, t, out); break;
     case 'band': band(p, t, out); break;
     case 'fade': fade(p, t, out); break;
+    case 'snake': snake(p, t, seed, out); break;
+    case 'stripes': stripes(p, t, out); break;
     default: fillAll(out, BLACK);
   }
   if (p.brightness < 255) {

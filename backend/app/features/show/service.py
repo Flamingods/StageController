@@ -8,7 +8,7 @@ import time
 from dataclasses import dataclass
 from functools import partial
 
-from app.features.buttons.rules import IDLE_TAPS, IN_SONG
+from app.features.buttons.rules import IDLE_TAPS, in_song_meaning
 
 from . import events, tunables
 from .scene import scene_for
@@ -151,7 +151,7 @@ class ShowDirector:
             return self._ok(action, side)
         if self.state != "playing":
             return self._ignored(action, self.state)
-        what = IN_SONG[action]
+        what = in_song_meaning(action, taps)
         if self._thunder and what == "tap":
             # the steal loop is time-based: the press counts when it arrives, not when it was made
             kind, fields = self._thunder.press(side, now)
@@ -222,6 +222,9 @@ class ShowDirector:
 
     def _schedule_intro(self, result: LaunchResult, now: int) -> None:
         self.state, self.game = "intro", result.game
+        if result.game == "solo":  # the 3-2-1 is for two players; one pillar starts the song at once
+            self._timeline.append((now, self._start_song))
+            return
         step_ms = tunables.get("introStepMs")
         for i, count in enumerate(range(INTRO_STEPS, 0, -1)):
             self._timeline.append((now + i * step_ms, partial(self._emit, events.intro(result.game, count))))

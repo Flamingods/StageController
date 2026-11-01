@@ -9,7 +9,7 @@ from app.core.database import get_db
 from app.core.config import MUSIC_DIR
 from app.features.songs.models import Song
 
-from . import analytics, tunables
+from . import analytics, palette, tunables
 from .events import TURN_COLOR
 from .service import save_tunable
 from .songmap import SongMap
@@ -20,6 +20,12 @@ router = APIRouter(prefix="/show", tags=["show"])
 
 class Note(BaseModel):
     text: str = Field(min_length=1)
+
+
+@router.get("/palette")
+def get_palette():
+    """Colour ramps, gains and drift periods for the pillars (docs/pillar-led-contract.md §11)."""
+    return palette.build_palette()
 
 
 @router.get("/spec")

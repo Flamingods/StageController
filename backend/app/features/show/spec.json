@@ -196,11 +196,12 @@
       "fail": "alternate pole blinks, no perimeter"
     },
     "binding": "pole percentages, timing and outcomes are binding; perimeter/wash drawing is illustration for the scene session",
-    "afterIntro": "song starts, pole at 0%, scene takes over"
+    "afterIntro": "song starts, pole at 0%, scene takes over",
+    "solo": "no intro: one pillar starts the song as soon as the launch is decided (user, 2026-11-01)"
   },
   "controls": {
     "skip": {
-      "gesture": "double click, one button",
+      "gesture": "3 presses, one button (user rule 2026-11-01; was double click)",
       "until": "middle of verse 2 (all modes)",
       "fallbackTunable": "skipFallbackMs"
     },

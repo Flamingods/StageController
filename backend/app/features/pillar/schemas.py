@@ -8,7 +8,7 @@ MAX_STEPS = 64
 MIN_DURATION_MS = 50
 MAX_DURATION_MS = 60000
 
-EffectName = Literal["off", "solid", "rainbow", "comet", "fill", "sparkle", "pulse", "band", "fade"]
+EffectName = Literal["off", "solid", "rainbow", "comet", "fill", "sparkle", "pulse", "band", "fade", "snake", "stripes"]
 Color = Annotated[str, Field(pattern=r"^#[0-9A-Fa-f]{6}$")]
 DurationMs = Annotated[int, Field(ge=MIN_DURATION_MS, le=MAX_DURATION_MS)]
 TimingMs = Annotated[int, Field(ge=0, le=MAX_DURATION_MS)]

@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
 from pydantic import BaseModel, Field
 from typing import Literal
@@ -78,15 +80,35 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
+background_tasks: set[asyncio.Task] = set()  # strong refs, so running sequences aren't collected
+
+
+def run_sequence_in_background(db: Session, sequence: Sequence) -> dict:
+    """Run a device sequence without waiting for it: plugs can take seconds (5 s per unreachable one),
+    and the music must not wait for them. It gets its own session, as the caller's closes first."""
+    sequence_id, bind = sequence.id, db.get_bind()
+
+    async def run():
+        session = Session(bind=bind)
+        try:
+            await execute_sequence(session, sequence_id)
+        except Exception as e:
+            print(f"Sequence {sequence_id} failed: {e}")
+        finally:
+            session.close()
+
+    task = asyncio.ensure_future(run())
+    background_tasks.add(task)
+    task.add_done_callback(background_tasks.discard)
+    return {"sequence": sequence.name, "status": "started"}
+
+
 async def handle_start_action(db: Session, playlist_name: str = "main") -> dict:
-    """Start main sequence and a playlist ("main" unless a game asks for its own), with a claps sound to open the show."""
+    """Start a playlist ("main" unless a game asks for its own) with a claps sound to open the show;
+    the "main" device sequence runs alongside, so slow plugs don't delay the music."""
     result = {"sequence": None, "playlist": None, "overlay_song": None}
 
-    # Find and execute "main" sequence
     main_sequence = db.query(Sequence).filter(Sequence.name.ilike("main")).first()
-    if main_sequence:
-        seq_result = await execute_sequence(db, main_sequence.id)
-        result["sequence"] = seq_result
 
     # Find the playlist
     main_playlist = db.query(Playlist).filter(Playlist.name.ilike(playlist_name)).first()
@@ -113,6 +135,9 @@ async def handle_start_action(db: Session, playlist_name: str = "main") -> dict:
 
     # Claps sound over the music (sound only, not the claps device sequence)
     result["overlay_song"] = play_start_claps(db)
+
+    if main_sequence:
+        result["sequence"] = run_sequence_in_background(db, main_sequence)
 
     return result
 

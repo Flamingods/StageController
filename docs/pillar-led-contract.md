@@ -1,15 +1,22 @@
 # Pillar LED contract (StageController ⇄ StagePillar ESP32)
 
-Version 1 — 2026-10-02. Shared by both repos; StagePillar's spec links here.
+Version 2 — 2026-10-17 (v1 2026-10-02). Shared by both repos; StagePillar's spec links here.
+Tom's `docs/show-events-contract.md` owns the show director, games and show events; this file
+covers what the pillars download and how they combine it with show events (§9–§12).
 Ownership: StagePillar owns the effect catalogue and its maths; StageController owns
 the sequence format, the compiler and the HTTP endpoints. Change this file first.
 
-## 1. Show state
+## 1. Show state and pillar identity
 
+- Two identical pillars, identified by **side**: `"L"` or `"R"` (left/right as seen from the
+  entrance, as in the show-events contract). Same plans, same gestures; the side only selects
+  show-event poles and program commands, and labels status and logs.
 - **Show running** ⇔ `GET /api/player/state` → `current_song != null`. A paused song counts
   as running. Do not use `is_playing`.
-- While idle, only `start` (single press) and `stop` (long press) take effect; the server
-  replies `200 {"status":"ignored","reason":"show_stopped"}` to the others.
+- Presses: the pillar sends **every** gesture side-aware (`POST /api/buttons/press`, body in
+  §9); the show director decides. There is no idle gate on the ESP any more. The legacy no-side
+  path (`/press/{action}`) keeps the server idle gate: while idle only `start` and `stop` take
+  effect, others reply `200 {"status":"ignored","reason":"show_stopped"}`.
 
 ## 2. Slots and playback
 
@@ -40,7 +47,7 @@ Slots: `idle`, `start`, `claps`, `special`, `skip`, `stop`. Gestures: 1 tap → 
 }
 ```
 
-- `effect`: `off|solid|rainbow|comet|fill|sparkle|pulse|band|fade`.
+- `effect`: `off|solid|rainbow|comet|fill|sparkle|pulse|band|fade|snake|stripes`.
 - `direction`: `up|down|bounce` (bounce is meaningful for comet and band; others treat it as up).
 - `speed`: 0.25–4.0 (1.0 = reference speed); stored on the wire as `round(speed*16)`.
 - `colors`: 0–3 `#RRGGBB` strings.
@@ -94,7 +101,7 @@ Steps follow back to back, each starting with `kind` u8:
 - **FRAME** (kind 2, 703 bytes): kind u8 | duration_ms u16 | 100 × [r u8, g u8, b u8,
   fade_ms u16, delay_ms u16].
 
-Effect ids: 0 off, 1 solid, 2 rainbow, 3 comet, 4 fill, 5 sparkle, 6 pulse, 7 band, 8 fade.
+Effect ids: 0 off, 1 solid, 2 rainbow, 3 comet, 4 fill, 5 sparkle, 6 pulse, 7 band, 8 fade, 9 snake, 10 stripes.
 
 A golden vector lives at `backend/tests/fixtures/pillar_golden.json` → `pillar_golden.bin`;
 StagePillar copies the `.bin` as a fixture and parses it in its native tests.
@@ -103,7 +110,7 @@ StagePillar copies the `.bin` as a fixture and parses it in its native tests.
 
 | slot | loop | step |
 |---|---|---|
-| idle | 1 | rainbow, 20480 ms, 255, up, speed 1.0 |
+| idle | 1 | stripes, 20480 ms, 255, up, speed 1.0 |
 | start | 1 | comet, 2100 ms, 255, bounce, speed 1.5, `#FF00C0 #00E5FF #FFB000` |
 | claps | 0 | sparkle, 1200 ms, 255, up, 1.0, `#FFFFFF` |
 | special | 0 | pulse, 1500 ms, 255, up, 1.0, `#0000FF #8000FF #FF00C0` |
@@ -113,9 +120,11 @@ StagePillar copies the `.bin` as a fixture and parses it in its native tests.
 ## 7. HTTP
 
 ESP-facing:
-- `GET /api/player/state` adds `pillar_plans_version` (u32, bumped on every save/reset) and
-  `pillar_preview_id` (0 = none). The ESP polls it every 1 s with query
-  `?client=pillar&running_version=<n>` so the server can show pillar status.
+- `GET /api/player/state` adds `pillar_plans_version` (u32, bumped on every save/reset),
+  `pillar_preview_id` (0 = none), `pillar_programs_version` (§10), `show_palette_version` (§11)
+  and, for the polling side, `pillar_command` (§10). The ESP polls it every 1 s with query
+  `?client=pillar&side=L|R&running_version=<n>`; the server keeps status per side. No `side` =
+  `R` (the board flashed before two pillars); any other value → 422.
 - `GET /api/pillar/plans/{slot}.bin` → `application/octet-stream`, or 404 when the slot uses
   the default (ESP deletes its copy). On a version change the ESP fetches all six slots to temp
   files and renames on success; if a file's header version differs from the version it began
@@ -128,7 +137,9 @@ behaviour. Ids expire after 60 s.
 
 App-facing: `GET /api/pillar/plans`, `GET /api/pillar/plans/defaults`,
 `PUT|DELETE /api/pillar/plans/{slot}`, `POST|DELETE /api/pillar/preview`,
-`GET /api/pillar/status`.
+`GET /api/pillar/status` → `{"plans_version","preview_id","pillars":{"L"|"R":{"seen_s_ago",
+"running_version"}}}` (only sides that have polled), plus the programs endpoints in §10.
+"Play on pillar" (preview) plays on both pillars.
 
 ## 8. Effect maths (integer, uint32, truncating division; N = 100; index 0 = bottom)
 
@@ -155,6 +166,11 @@ app's preview. `t` = ms since step start, clamped to duration−1.
 - band: passMs = scaled(500); pass = t/passMs; head = (t%passMs)·(N+15)/passMs; pos as comet;
   lit with colors[0] if pos ≤ head and pos+15 > head.
 - fade: per channel a + (b−a)·t/duration (signed), a = colors[0], b = colors[1].
+- snake: a 36-LED rainbow snake climbs the pillar (bottom to top, or top to bottom for dir = down) once
+  per pass of scaled(3000) ms, leaving sparkles that fade over scaled(1500) ms; the rest of the
+  pillar is dark. Colours are ignored. See StagePillar `renderSnake` for the exact maths.
+- stripes: the rainbow flowing along the pillar (80 ms per LED at speed 1.0) cut into 32-LED periods:
+  20 lit LEDs with 3-LED soft ends, then 12 dark. Colours are ignored. See StagePillar `renderStripes`.
 - Sequence: steps back to back, no blending; loop → t %= total.
 - The strip has a global cap of 80/255 (FastLED brightness) on top of everything.
 
@@ -164,7 +180,66 @@ Porting pitfalls (TypeScript preview):
 - fade: C integer division truncates toward zero, so use `Math.trunc`, not `Math.floor`, when b < a.
 - rainbow: `((i − shift)·5) & 0xFF` matches the C uint32 wrap.
 
-## 9. Show poles driven by the hub (added 2026-10-17)
+## 9. Show alignment (with docs/show-events-contract.md)
+
+Press: `POST /api/buttons/press` with `{"action","side":"L"|"R","taps":<real count>,
+"first_press_ago_ms":<ms from the gesture's first debounced press to the send>}`; `taps` is the
+real count (no cap at 5). The ESP listens to `/api/buttons/ws` for show events and commands.
+
+**Layers, top wins:** preview > show event (show state not `idle`) > gesture one-shot (only in
+show state `idle`) > program (§10) > slot base (idle loop, or the start loop while running).
+A gesture ends a running preview (§2) even during a game; the gesture's one-shot is still only
+drawn in show state `idle`.
+In show state `idle` the poles say `off` and the ESP draws its own layers below.
+
+No button rings: the pillar is the button, so the ESP ignores `buttons` in show events and draws
+its pole on the pillar strip.
+
+## 10. Programs (commanded by the Pi, per side)
+
+- A library of up to **24** programs, ids 1..255, each a sequence (§3) compiled to PLP1 (§5);
+  ≤ 48 KB / 64 steps each, ≤ 512 KB in total (server 422 otherwise; the ESP stages a whole new
+  library next to the active one in its 1.4 MB partition). Both pillars download all of it.
+- `pillar_programs_version` in the state reply; when it changes the ESP fetches
+  `GET /api/pillar/programs/index` → `{"version":N,"ids":[1,4,7]}` then
+  `GET /api/pillar/programs/<id>.bin`; the header's `plans_version` field carries the programs
+  version, and a mid-round mismatch restarts the round (as for slots).
+- **Command** per side: `{"seq":S,"program":P}`, P = 0 → release. `seq` is a server counter that
+  never decreases (persisted); the ESP applies only `seq` > the last one it applied.
+  - Fast path: a WebSocket message on `/api/buttons/ws`
+    `{"action":"pillar_command","side":"L"|"R","seq":S,"program":P}`, broadcast to all; each ESP
+    keeps its own side.
+  - Backup: the state reply for `?side=X` carries `"pillar_command":{"seq":S,"program":P}`, so a
+    missed message or a reboot is fixed within ~1 s.
+- The ESP keeps the latest command even when the id is unknown or not yet downloaded ("unknown"
+  = normal behaviour for now); after every library sync it re-resolves the command, and restarts
+  the active program if its file changed.
+- An active program replaces the slot base layer. Gestures play their slot one-shot, then return
+  to the program. A non-loop program that finishes → normal behaviour.
+- Release (program 0) → normal behaviour; the command is cleared.
+- No successful poll for 10 s → the program **pauses**: normal behaviour, the command is kept,
+  and the program resumes when polls succeed again (unless a newer command released it).
+- During a game (show state not `idle`) show events own the LEDs; the stored command waits below
+  and resumes after the game. The server does not drop commands sent during a game.
+
+## 11. Palette and pole rendering (matches Tom's emulator, frontend/src/show)
+
+- `GET /api/show/palette` → `{"version":N,"colors":{"<name>":{"ramp":[[r,g,b],[r,g,b],[r,g,b]],
+  "gain":G,"drift_ms":P}}}`; `show_palette_version` in the state reply changes whenever a ramp or
+  a colour tunable changes. `ramp` = [dim, base, bright]; `gain` = tunable `<name>Gain` (1.0 when
+  absent); `drift_ms` = `pinkDriftPeriodMs` for pink, else `driftPeriodMs`. Unknown colour name →
+  white.
+- Drift, on **every** colour including white: for LED i at time t (s), period = drift_ms/1000,
+  k = 0.5 + 0.5·sin(0.33·i − 2π·t/period); colour = lerp(ramp[0], ramp[1], 2k) when k < 0.5, else
+  lerp(ramp[1], ramp[2], 2k − 1); then × gain, capped at 255.
+- Pole: lit LEDs (from the bottom) = round(pct/100 · 100). `glow` = all 100 at `level` %
+  (ambientGlowPct, default 35). `solid` = fill at pct. `pulse` = fill at pct with brightness
+  0.1 + 0.9·(0.5 − 0.5·cos(2π·elapsed/period)), period = `ms` or 500 ms. `blink` = 250 ms on /
+  250 ms off. `drain` = pct·max(0, 1 − elapsed/ms) from receipt. `off` = dark.
+
+
+
+## 12. Show poles driven by the hub (added 2026-10-17)
 
 The Pi draws each pillar's pole (docs/show-events-contract.md) through the **preview** of section 7,
 so the firmware needs no show-event code. `app/features/pillar/poles.py` owns it.

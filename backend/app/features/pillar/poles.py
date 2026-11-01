@@ -1,4 +1,4 @@
-"""The hub drives the pillar poles (docs/pillar-led-contract.md §9): each show event's pole becomes a
+"""The hub drives the pillar poles (docs/pillar-led-contract.md §12): each show event's pole becomes a
 per-pillar preview sequence, which the pillar picks up on its next poll (~1 s) and plays with its
 existing renderer. No firmware change: the pillar only knows previews."""
 import threading

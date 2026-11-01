@@ -16,7 +16,10 @@ Three **optional** fields join the show state machine:
 
 Idle: the action name stands for the tap count (`start` 1, `claps` 2, `special` 3, `skip` 4;
 `special` also covers 5+) and feeds the launch rule. A long press (`stop`) while idle turns
-everything off. In song the actions keep today's meaning (claps, special, skip, stop).
+everything off. In song the meaning comes from `taps` when present (user rule 2026-11-01):
+1 = tap, 2 = claps, **3 = skip**, **4+ = special**; a long press (`stop`) is stop. The pillar's
+action names are not changed (it still sends 3 taps as `special`, 4 as `skip`): the controller
+reads the count. Without `taps` the action name keeps its old meaning.
 
 Response for a side-aware press: `{"status":"ok","action":..,"side":..,"show_state":..}` or
 `{"status":"ignored",...,"reason":..}`.
@@ -53,15 +56,15 @@ perimeter instruction.
 |---|---|---|
 | `idle` | nothing running (also after a song, a stop or a failed launch) | all `off`. **Fall back to your own slot sequences** (idle rainbow, start comet, ...) exactly as without a show. |
 | `launching` | after each launch gesture, until the decision | the presser's pole at `launchPcts[count-1]` (33/66/100), pink, solid; the other pole as it was |
-| `intro` | the 3-2-1, `step` 3 then 2 then 1, one event per `introStepMs` | `polePcts` (100/66/33) in the game's colours, see below |
+| `intro` | the 3-2-1 of a two-pillar game (duet, showoff, thunder), `step` 3 then 2 then 1, one event per `introStepMs`; **solo has no intro**: `launching` goes straight to `playing` | `polePcts` (100/66/33) in the game's colours, see below |
 | `playing` | the song started, and again whenever the song's section, the showoff turn or the pole owner changes | the in-song glow (below), or in thunder the steal loop's poles (below); `song` set (see below) |
 | `failing` | mismatched launch: `failBlinkCount` events alternating L, R, L, R each `failBlinkMs` (white, solid), then one `drain` event (`ms` = `failFadeMs`) on the last lit pole, then `idle` | one white pole at a time |
 
 `game`: `solo | duet | showoff | thunder` (absent while launching/failing/idle).
 
-Intro per game: solo and duet -- both poles pink, perimeter `both` (solo is symmetric: an L and an
-R launch give identical intro and song events; only the launch fill above and the logged side
-differ); showoff -- L lime / R blue, perimeter lime-left at 3, blue-right at 2,
+Intro per game (solo has none, asked for by the user 2026-11-01: one pillar starts the song at once;
+solo is symmetric: an L and an R launch give identical song events, only the launch fill above and
+the logged side differ): duet -- both poles pink, perimeter `both`; showoff -- L lime / R blue, perimeter lime-left at 3, blue-right at 2,
 then both poles pink with `perimeter.look = "merge"` at 1; thunder -- both poles white,
 perimeter L at 3, R at 2, centre at 1. Launch-fill colour (pink) is a placeholder: the spec only
 fixes the percentages.

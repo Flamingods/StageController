@@ -21,3 +21,6 @@ data/show-events.jsonl
 
 # Brainstorming mockups
 .superpowers/
+
+# Personal Claude Code settings
+.claude/settings.local.json

@@ -1,3 +1,5 @@
+from typing import Literal
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -5,8 +7,9 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.features.songs.models import Song
 from app.features.playlists.services import get_playlist, get_playlist_songs
-from app.features.pillar import service as pillar
-from app.features.pillar.poles import poles
+from app.features.pillar import programs as pillar_programs, service as pillar
+from app.features.show.palette import build_palette
+from app.features.pillar.poles import SIDE_BY_PILLAR, poles
 from .service import player
 
 router = APIRouter(prefix="/player", tags=["player"])
@@ -30,20 +33,34 @@ class VolumeRequest(BaseModel):
 
 
 @router.get("/state")
-def get_state(request: Request, client: str | None = None, running_version: int | None = None,
-              pillar_id: int | None = None, db: Session = Depends(get_db)):
-    """Get current player state, plus what the pillar ESP watches (it polls this every second
-    as ?client=pillar&pillar_id=N&running_version=N). The preview id is the editor's draft when one
-    plays, else that pillar's show pole (docs/pillar-led-contract.md §9)."""
-    if client == "pillar":
-        pillar.pillar_status.record_poll(running_version)
-        if pillar_id is not None:
-            poles.seen(pillar_id, request.client.host if request.client else None)
-    return {
+def get_state(
+    request: Request,
+    client: str | None = None,
+    side: Literal["L", "R"] | None = None,
+    pillar_id: int | None = None,
+    running_version: int | None = None,
+    db: Session = Depends(get_db),
+):
+    """Get current player state, plus what the pillar ESPs watch (each polls every second as
+    ?client=pillar&side=L|R&running_version=N, or ?pillar_id=N; no side = R, the one board flashed
+    before two pillars). With pillar_id the preview id is the editor's draft when one plays, else that
+    pillar's show pole (docs/pillar-led-contract.md §12)."""
+    if side is None:
+        side = SIDE_BY_PILLAR.get(pillar_id, "R")
+    state = {
         **player.get_state(),
         "pillar_plans_version": pillar.get_version(db),
         "pillar_preview_id": pillar.preview.current_id() or poles.current_id(pillar_id),
+        "pillar_programs_version": pillar_programs.get_version(db),
+        "show_palette_version": build_palette()["version"],
     }
+    if client == "pillar":
+        pillar.pillar_status.record_poll(side, running_version)
+        if pillar_id is not None:
+            poles.seen(pillar_id, request.client.host if request.client else None)
+        # Backup for the WebSocket command: this side's current program (contract §10)
+        state["pillar_command"] = pillar_programs.commands(db)[side]
+    return state
 
 
 @router.post("/play/song")

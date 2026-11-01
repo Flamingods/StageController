@@ -437,11 +437,26 @@ export const showApi = {
 };
 
 // Pillar LED plans (docs/pillar-led-contract.md)
+export type PillarSide = 'L' | 'R';
+
 export interface PillarStatus {
   plans_version: number;
   preview_id: number;
-  pillar_seen_s_ago: number | null;
-  pillar_running_version: number | null;
+  /** Only sides that have polled */
+  pillars: Partial<Record<PillarSide, { seen_s_ago: number; running_version: number | null }>>;
+  programs_version: number;
+  /** What each side is commanded to play; program 0 = released */
+  commands: Record<PillarSide, { seq: number; program: number }>;
+  /** Tom's show director: anything but 'idle' means a game owns the LEDs */
+  show_state: string;
+}
+
+export interface PillarProgram {
+  id: number;
+  name: string;
+  sequence: PillarSequence;
+  /** Compiled size in bytes */
+  size: number;
 }
 
 /** A rejected save: a message per step index (-1 = whole sequence). */
@@ -467,6 +482,8 @@ async function pillarRequest<T>(path: string, init?: RequestInit): Promise<T> {
   if (res.status === 422) {
     const body = await res.json();
     const stepErrors: Record<number, string> = {};
+    // A plain message (e.g. a library limit) is about the whole sequence
+    if (typeof body.detail === 'string') throw new PillarValidationError({ [-1]: body.detail });
     for (const e of (body.detail ?? []) as FastApiError[]) {
       const msg = (e.msg ?? 'Invalid').replace(/^Value error, /, '');
       const fromLoc = e.loc?.[1] === 'steps' && typeof e.loc[2] === 'number' ? e.loc[2] : undefined;
@@ -490,4 +507,15 @@ export const pillarApi = {
     pillarRequest<{ preview_id: number }>('/preview', { method: 'POST', body: JSON.stringify(seq) }),
   stopPreview: () => pillarRequest<{ preview_id: number }>('/preview', { method: 'DELETE' }),
   status: () => pillarRequest<PillarStatus>('/status'),
+  listPrograms: () => pillarRequest<{ version: number; programs: PillarProgram[] }>('/programs'),
+  createProgram: (name: string, sequence: PillarSequence) =>
+    pillarRequest<{ id: number; version: number }>('/programs', { method: 'POST', body: JSON.stringify({ name, sequence }) }),
+  updateProgram: (id: number, name: string, sequence: PillarSequence) =>
+    pillarRequest<{ id: number; version: number }>(`/programs/${id}`, { method: 'PUT', body: JSON.stringify({ name, sequence }) }),
+  deleteProgram: (id: number) => pillarRequest<{ version: number }>(`/programs/${id}`, { method: 'DELETE' }),
+  /** Play a program on the given sides (0 = release) */
+  command: (sides: PillarSide[], program: number) =>
+    pillarRequest<{ seq: number; commands: PillarStatus['commands'] }>('/command', {
+      method: 'POST', body: JSON.stringify({ sides, program }),
+    }),
 };

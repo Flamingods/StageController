@@ -13,8 +13,8 @@ def _effect(effect: str, duration_ms: int, colors: list[str] | None = None,
 
 
 DEFAULT_SEQUENCES: dict[str, dict] = {
-    # 256 LEDs of rainbow shift × 80 ms, so the loop seam is invisible
-    "idle": {"loop": True, "steps": [_effect("rainbow", 20480)]},
+    # Rainbow segments with dark gaps flowing up; 256 LEDs of shift × 80 ms, so the loop seam is invisible
+    "idle": {"loop": True, "steps": [_effect("stripes", 20480)]},
     "start": {"loop": True, "steps": [
         _effect("comet", 2100, ["#FF00C0", "#00E5FF", "#FFB000"], direction="bounce", speed=1.5)]},
     "claps": {"loop": False, "steps": [_effect("sparkle", 1200, ["#FFFFFF"])]},

@@ -506,3 +506,48 @@
     display: none;
   }
 }
+
+/* Programs */
+.program-tabs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.program-tab {
+  font-size: 0.85rem;
+}
+
+.program-name {
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-main);
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 600;
+  min-width: 14rem;
+}
+
+.side-status {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.side-status li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.side-status b {
+  color: var(--text);
+  min-width: 3rem;
+}

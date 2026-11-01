@@ -36,13 +36,13 @@ function DurationField({ value, onChange }: { value: number; onChange: (v: numbe
 // ---- Effect steps -------------------------------------------------------------
 
 const EFFECT_COLORS: Record<EffectName, { min: number; max: number }> = {
-  off: { min: 0, max: 0 }, rainbow: { min: 0, max: 0 },
+  off: { min: 0, max: 0 }, rainbow: { min: 0, max: 0 }, snake: { min: 0, max: 0 }, stripes: { min: 0, max: 0 },
   solid: { min: 1, max: 1 }, fill: { min: 1, max: 1 }, sparkle: { min: 1, max: 1 }, band: { min: 1, max: 1 },
   fade: { min: 2, max: 2 }, comet: { min: 1, max: 3 }, pulse: { min: 1, max: 3 },
 };
-const USES_DIRECTION: EffectName[] = ['rainbow', 'comet', 'fill', 'band'];
+const USES_DIRECTION: EffectName[] = ['rainbow', 'comet', 'fill', 'band', 'snake', 'stripes'];
 const USES_BOUNCE: EffectName[] = ['comet', 'band'];
-const USES_SPEED: EffectName[] = ['rainbow', 'comet', 'sparkle', 'pulse', 'band'];
+const USES_SPEED: EffectName[] = ['rainbow', 'comet', 'sparkle', 'pulse', 'band', 'snake', 'stripes'];
 const DEFAULT_COLORS = ['#FF00C0', '#00E5FF', '#FFB000'];
 
 function EffectEditor({ step, onChange }: { step: EffectStep; onChange: StepChange }) {

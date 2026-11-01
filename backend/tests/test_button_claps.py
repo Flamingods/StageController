@@ -141,3 +141,38 @@ def test_song_end_falls_back_to_claps(db, player):
 def test_song_end_with_no_claps_playlists_is_silent(db, player):
     assert claps.play_finale_claps(db) is None
     assert player.overlays == []
+
+
+def test_start_plays_music_without_waiting_for_the_main_sequence(monkeypatch, player):
+    """Slow or unreachable plugs must not delay the music: the sequence runs in the background."""
+    import time
+    from sqlalchemy.pool import StaticPool
+    from app.features.devices.models import Sequence
+
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    Base.metadata.create_all(engine)
+    db = sessionmaker(bind=engine)()
+    add_playlist(db, "main", ["song.mp3"])
+    db.add(Sequence(name="main"))
+    db.commit()
+
+    done = []
+
+    async def slow_sequence(session, sequence_id):
+        await asyncio.sleep(1.0)  # a plug timing out
+        done.append(sequence_id)
+
+    monkeypatch.setattr(buttons, "execute_sequence", slow_sequence)
+
+    async def scenario():
+        t0 = time.monotonic()
+        result = await buttons.handle_start_action(db)
+        elapsed = time.monotonic() - t0
+        assert player.resumed and elapsed < 0.2
+        assert result["sequence"] == {"sequence": "main", "status": "started"}
+        assert done == []
+        await asyncio.gather(*buttons.background_tasks)  # still runs to the end
+        assert len(done) == 1
+
+    asyncio.run(scenario())
+    db.close()

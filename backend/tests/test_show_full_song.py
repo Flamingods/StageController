@@ -123,8 +123,8 @@ def check_log(path, game, count, extra=()):
 
 def test_solo_whole_song(jsonl):
     events, player = run([("start", "R", 0)])
-    assert states(events) == EXPECTED_STATES
-    assert [e.poles.R.pct for e in events if e.state == "intro"] == [100, 66, 33]
+    # one pillar: no 3-2-1, the song starts as soon as the launch is decided
+    assert states(events) == [("launching", None), ("playing", None), ("idle", None)]
     assert [(e.song.section, e.song.section_index) for e in playing(events)] == SECTIONS
     assert all(e.turn is None and e.thunder is None for e in playing(events))
     check_log(jsonl, "solo", 1)

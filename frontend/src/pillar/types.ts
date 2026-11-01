@@ -9,7 +9,7 @@ export const MAX_DURATION_MS = 60000;
 export const SLOTS = ['idle', 'start', 'claps', 'special', 'skip', 'stop'] as const;
 export type Slot = (typeof SLOTS)[number];
 
-export const EFFECTS = ['off', 'solid', 'rainbow', 'comet', 'fill', 'sparkle', 'pulse', 'band', 'fade'] as const;
+export const EFFECTS = ['off', 'solid', 'rainbow', 'comet', 'fill', 'sparkle', 'pulse', 'band', 'fade', 'snake', 'stripes'] as const;
 export type EffectName = (typeof EFFECTS)[number];
 export type Direction = 'up' | 'down' | 'bounce';
 

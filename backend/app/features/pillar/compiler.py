@@ -23,7 +23,7 @@ MAX_FILE_SIZE = 48 * 1024
 KIND_EFFECT = 1
 KIND_FRAME = 2
 EFFECT_IDS = {"off": 0, "solid": 1, "rainbow": 2, "comet": 3, "fill": 4,
-              "sparkle": 5, "pulse": 6, "band": 7, "fade": 8}
+              "sparkle": 5, "pulse": 6, "band": 7, "fade": 8, "snake": 9, "stripes": 10}
 DIRECTION_IDS = {"up": 0, "down": 1, "bounce": 2}
 WIPE_EDGE_MAX_MS = 150
 

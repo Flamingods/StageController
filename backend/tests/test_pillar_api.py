@@ -124,17 +124,21 @@ def test_preview_expires(client, monkeypatch):
     assert client.get("/api/pillar/preview.bin").status_code == 404
 
 
-def test_status_reports_pillar_polls(client, monkeypatch):
+def test_status_reports_each_side_that_polled(client, monkeypatch):
     now = [500.0]
     monkeypatch.setattr(service.time, "monotonic", lambda: now[0])
     body = client.get("/api/pillar/status").json()
-    assert body["pillar_seen_s_ago"] is None and body["pillar_running_version"] is None
-    service.pillar_status.record_poll(running_version=3)
+    assert (body["plans_version"], body["preview_id"], body["pillars"]) == (0, 0, {})
+    service.pillar_status.record_poll("R", running_version=3)
     now[0] += 4
-    body = client.get("/api/pillar/status").json()
-    assert body["pillar_seen_s_ago"] == pytest.approx(4)
-    assert body["pillar_running_version"] == 3
-    assert body["plans_version"] == 0 and body["preview_id"] == 0
+    pillars = client.get("/api/pillar/status").json()["pillars"]
+    assert list(pillars) == ["R"]
+    assert pillars["R"]["seen_s_ago"] == pytest.approx(4)
+    assert pillars["R"]["running_version"] == 3
+    service.pillar_status.record_poll("L", running_version=2)
+    pillars = client.get("/api/pillar/status").json()["pillars"]
+    assert pillars["L"] == {"seen_s_ago": pytest.approx(0), "running_version": 2}
+    assert pillars["R"]["running_version"] == 3
 
 
 @pytest.fixture
@@ -150,12 +154,25 @@ def test_player_state_includes_pillar_fields(state_client):
     state = state_client.get("/api/player/state").json()
     assert state["pillar_plans_version"] == 1
     assert state["pillar_preview_id"] == pid
+    assert state["show_palette_version"] > 0
     assert "current_song" in state
 
 
-def test_player_state_poll_from_pillar_is_recorded(state_client):
+def test_player_state_poll_from_pillar_is_recorded_per_side(state_client):
     state_client.get("/api/player/state")
-    assert service.pillar_status.snapshot()["pillar_seen_s_ago"] is None
-    state_client.get("/api/player/state", params={"client": "pillar", "running_version": 5})
+    assert service.pillar_status.snapshot() == {}
+    state_client.get("/api/player/state", params={"client": "pillar", "side": "R", "running_version": 5})
     snap = service.pillar_status.snapshot()
-    assert snap["pillar_running_version"] == 5 and snap["pillar_seen_s_ago"] < 1
+    assert list(snap) == ["R"] and snap["R"]["running_version"] == 5 and snap["R"]["seen_s_ago"] < 1
+
+
+def test_pillar_poll_without_side_counts_as_right(state_client):
+    # Firmware from before the two-pillar change sends no side; that board is the right pillar
+    state_client.get("/api/player/state", params={"client": "pillar", "running_version": 1})
+    assert list(service.pillar_status.snapshot()) == ["R"]
+
+
+def test_pillar_poll_with_unknown_side_is_rejected(state_client):
+    res = state_client.get("/api/player/state", params={"client": "pillar", "side": "X"})
+    assert res.status_code == 422
+    assert service.pillar_status.snapshot() == {}

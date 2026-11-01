@@ -87,28 +87,38 @@ def clean():
     tunables.clear_overrides()
 
 
-def test_solo_launch_runs_the_intro_then_starts_the_song():
+def test_solo_launch_skips_the_intro_and_starts_the_song_at_once():
+    """One pillar = solo: no 3-2-1 (the countdown is for two players); the song starts as soon as
+    the launch is decided."""
     rig = Rig()
     assert rig.press("start", "L")["status"] == "ok"
     assert rig.director.state == "launching"
     launching = rig.events[-1][1]
     assert (launching.poles.L.pct, launching.poles.R.pct) == (33, 0)
 
-    rig.advance(500)
-    assert rig.director.state == "intro" and rig.director.game == "solo"
-    decided = rig.at("intro", 3)
-    rig.advance(1000)
-    rig.advance(2000 - 20)
-    assert rig.player.started == []  # the song waits for the whole 3 s
-    rig.advance(20)
+    rig.advance(500 - STEP)
+    assert rig.player.started == []  # still waiting to see if the other pillar joins
+    rig.advance(STEP)
     assert rig.player.started == ["solo"]
-    assert rig.director.state == "playing"
+    assert (rig.director.state, rig.director.game) == ("playing", "solo")
+    assert rig.states() == [("launching", None), ("playing", None)]
+    assert rig.events[-1][1].song.id == 1
 
-    assert rig.states() == [("launching", None), ("intro", 3), ("intro", 2), ("intro", 1), ("playing", None)]
+
+def test_duet_launch_still_runs_the_intro_then_starts_the_song():
+    rig = Rig()
+    rig.press("start", "L")
+    rig.press("start", "R", ago=50)
+    rig.advance(500)
+    assert (rig.director.state, rig.director.game) == ("intro", "duet")
+    decided = rig.at("intro", 3)
+    rig.advance(3000 - 2 * STEP)
+    assert rig.player.started == []  # the song waits for the whole 3 s
+    rig.advance(2 * STEP)
+    assert rig.player.started == ["duet"] and rig.director.state == "playing"
+    assert rig.states() == [("launching", None), ("launching", None), ("intro", 3), ("intro", 2), ("intro", 1), ("playing", None)]
     assert [rig.at("intro", s) - decided for s in (2, 1)] == [1000, 2000]
     assert rig.at("playing") - decided == 3000
-    assert [e.poles.L.pct for _, e in rig.events if e.state == "intro"] == [100, 66, 33]
-    assert rig.events[-1][1].song.id == 1
 
 
 def test_duet_launch_from_two_near_simultaneous_presses():
@@ -192,6 +202,7 @@ def test_long_press_while_launching_cancels_the_round():
 def test_presses_are_ignored_during_the_intro_but_stop_cancels_it():
     rig = Rig()
     rig.press("start", "L")
+    rig.press("start", "R", ago=50)
     rig.advance(1000)
     assert rig.director.state == "intro"
     assert rig.press("claps", "L")["status"] == "ignored"
@@ -202,7 +213,7 @@ def test_presses_are_ignored_during_the_intro_but_stop_cancels_it():
 
 def play_solo(rig):
     rig.press("start", "L")
-    rig.advance(500 + 3000 + STEP)
+    rig.advance(500 + STEP)
     assert rig.director.state == "playing"
 
 
@@ -277,8 +288,9 @@ def test_intro_step_follows_the_tunable():
     tunables.set_override("introStepMs", 500)
     rig = Rig()
     rig.press("start", "L")
-    rig.advance(500 + 1500 + STEP)
-    assert rig.player.started == ["solo"]
+    rig.press("start", "R", ago=50)
+    rig.advance(500 + 1500 + 2 * STEP)
+    assert rig.player.started == ["duet"]
 
 
 def kinds(rig, kind):
@@ -340,6 +352,17 @@ def test_events_carry_the_section_for_every_game_but_the_turn_only_for_showoff()
     seek(rig, 70)
     event = playing_events(rig)[-1]
     assert (event.song.section, event.song.section_index, event.turn, event.perimeter) == ("verse", 1, None, None)
+
+
+def test_in_song_three_taps_skip_and_four_or_more_are_special():
+    rig = Rig()
+    play_solo(rig)
+    # what the pillar sends: action names from the old table, the real count in taps
+    assert rig.press("claps", "R", taps=2)["status"] == "ok"
+    assert rig.press("special", "R", taps=4)["status"] == "ok"
+    assert rig.press("special", "L", taps=6)["status"] == "ok"
+    assert rig.press("special", "L", taps=3)["status"] == "ok"
+    assert rig.player.actions == ["claps", "special", "special", "skip"]
 
 
 def test_skip_is_allowed_before_the_middle_of_verse_two_and_ignored_after():
